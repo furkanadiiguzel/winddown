@@ -57,7 +57,11 @@ export async function fillPdf(options: FillPdfOptions): Promise<Uint8Array> {
     contactPerson: intakeState.signerName, // contact person defaults to signer
     // Certification checkbox: checked iff user affirmed (UI checkbox drives PDF checkbox)
     certificationAffirmed: intakeState.certificationAffirmed,
-    dissolutionReason: true, // voluntary dissolution
+    // Pre-submission checklist — all pre-checked for Winddown-generated PDFs
+    checklistFee: true,
+    checklistGoodStanding: true,
+    checklistProcessingTime: true,
+    checklistMailAndReview: true,
   };
 
   for (const [fieldId, entry] of Object.entries(template.fieldMap)) {
