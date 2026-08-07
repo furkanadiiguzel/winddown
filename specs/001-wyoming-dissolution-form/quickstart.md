@@ -200,6 +200,19 @@ After deploying to a Vercel preview URL:
 8. Submit 6 analysis requests from the same IP; verify the 6th returns a 429 with
    a Retry-After header and the UI shows the rate-limit message with a manual-entry option.
 
+### Pending — Manual UI Verification (checkpoint 2, deferred; required before final deployment sign-off)
+
+- [ ] Post-confirmation edit resets the state correctly: after reaching the preview step and
+  ticking both confirmation checkboxes, edit any extracted or gap field, and verify that:
+  (a) both `certificationAffirmed` and `userConfirmedReview` are visibly unchecked,
+  (b) the Download button re-locks (disabled), and
+  (c) a user-facing message explains why the confirmation was reset.
+- [ ] Full keyboard-only pass: Tab through every interactive element on `/review` —
+  all inputs, checkboxes, edit affordances, confirm/download buttons — in order, with
+  no focus traps and no unreachable controls.
+- [ ] Evidence popover accessible at narrow widths: at 375 px viewport the popover must
+  not overflow the screen and must remain closeable via keyboard.
+
 ---
 
 ## Links
