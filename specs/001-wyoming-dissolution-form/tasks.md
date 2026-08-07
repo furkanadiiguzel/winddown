@@ -24,15 +24,15 @@ clean, passing baseline that every subsequent task builds on.
 **Independent test**: `pnpm build && pnpm lint && pnpm tsc --noEmit` all exit 0; Vitest
 and Playwright runners launch without error.
 
-- [ ] T001 Bootstrap Next.js 14 App Router project with TypeScript strict mode in repo root (`next.config.ts`, `tsconfig.json` — `"strict": true`, `package.json`)
-- [ ] T002 [P] Configure Tailwind CSS v3 with content paths covering `src/app/**` and `src/components/**` (`tailwind.config.ts`, `src/app/globals.css`)
-- [ ] T003 [P] Install and initialise shadcn/ui with neutral base colour; add Button, Card, Checkbox, Input, Popover, Badge primitives (`src/components/ui/`)
-- [ ] T004 [P] Configure Vitest with jsdom environment, path aliases matching tsconfig, and coverage thresholds (`vitest.config.ts`, `tests/unit/`)
-- [ ] T005 [P] Install Playwright and configure browser projects (chromium only) with base URL `http://localhost:3000`; add `pnpm test:e2e` script (`playwright.config.ts`, `tests/e2e/`)
-- [ ] T006 [P] Create `src/config/wyoming.ts` with all procedural facts — mailing address (Cheyenne), fee note with verify-at-SOS instruction, statute ref W.S. 17-29-701, processing-time note, SOS forms URL, SOS business search URL, `lastVerified: "2026-08-06"` — typed as `WyomingConfig`; this file is the sole source of procedural facts, never imported from elsewhere at runtime except via this module
-- [ ] T007 [P] Add GitHub Actions CI workflow running `tsc --noEmit`, `pnpm lint`, `pnpm test:unit`, and `pnpm build` on every push (`/.github/workflows/ci.yml`)
-- [ ] T008 Create full directory skeleton per plan.md source tree: `src/app/`, `src/components/ui/`, `src/lib/scraper/`, `src/lib/extractor/`, `src/lib/pdf/`, `src/config/`, `src/schemas/form-templates/`, `src/assets/forms/`, `tests/unit/schemas/`, `tests/fixtures/`, `tests/extraction/`, `tests/pdf/`, `tests/e2e/`
-- [ ] T074 Create `.env.example` in repo root documenting every required environment variable — `ANTHROPIC_API_KEY` (Anthropic API key, never commit real value), `UPSTASH_REDIS_REST_URL` (Upstash Redis REST endpoint), `UPSTASH_REDIS_REST_TOKEN` (Upstash Redis token), `ENABLE_TIER2_RENDER` (set `false` to skip Playwright headless, faster local tests), `NEXT_PUBLIC_STUB` (set `true` to load hardcoded ExtractionResult in `/review`, used in walking-skeleton development) — each with a one-line comment; add `.env.local` to `.gitignore`
+- [x] T001 Bootstrap Next.js 14 App Router project with TypeScript strict mode in repo root (`next.config.ts`, `tsconfig.json` — `"strict": true`, `package.json`)
+- [x] T002 [P] Configure Tailwind CSS v3 with content paths covering `src/app/**` and `src/components/**` (`tailwind.config.ts`, `src/app/globals.css`)
+- [x] T003 [P] Install and initialise shadcn/ui with neutral base colour; add Button, Card, Checkbox, Input, Popover, Badge primitives (`src/components/ui/`)
+- [x] T004 [P] Configure Vitest with jsdom environment, path aliases matching tsconfig, and coverage thresholds (`vitest.config.ts`, `tests/unit/`)
+- [x] T005 [P] Install Playwright and configure browser projects (chromium only) with base URL `http://localhost:3000`; add `pnpm test:e2e` script (`playwright.config.ts`, `tests/e2e/`)
+- [x] T006 [P] Create `src/config/wyoming.ts` with all procedural facts — mailing address (Cheyenne), fee note with verify-at-SOS instruction, statute ref W.S. 17-29-701, processing-time note, SOS forms URL, SOS business search URL, `lastVerified: "2026-08-06"` — typed as `WyomingConfig`; this file is the sole source of procedural facts, never imported from elsewhere at runtime except via this module
+- [x] T007 [P] Add GitHub Actions CI workflow running `tsc --noEmit`, `pnpm lint`, `pnpm test:unit`, and `pnpm build` on every push (`/.github/workflows/ci.yml`)
+- [x] T008 Create full directory skeleton per plan.md source tree: `src/app/`, `src/components/ui/`, `src/lib/scraper/`, `src/lib/extractor/`, `src/lib/pdf/`, `src/config/`, `src/schemas/form-templates/`, `src/assets/forms/`, `tests/unit/schemas/`, `tests/fixtures/`, `tests/extraction/`, `tests/pdf/`, `tests/e2e/`
+- [x] T074 Create `.env.example` in repo root documenting every required environment variable — `ANTHROPIC_API_KEY` (Anthropic API key, never commit real value), `UPSTASH_REDIS_REST_URL` (Upstash Redis REST endpoint), `UPSTASH_REDIS_REST_TOKEN` (Upstash Redis token), `ENABLE_TIER2_RENDER` (set `false` to skip Playwright headless, faster local tests), `NEXT_PUBLIC_STUB` (set `true` to load hardcoded ExtractionResult in `/review`, used in walking-skeleton development) — each with a one-line comment; add `.env.local` to `.gitignore`
 
 **Checkpoint — Phase 1 complete**: `pnpm build` and `pnpm tsc --noEmit` pass. All tool
 scripts (`test:unit`, `test:e2e`) are runnable (even if test suites are empty).

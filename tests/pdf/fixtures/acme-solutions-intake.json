@@ -1,0 +1,18 @@
+{
+  "mode": "final",
+  "certificationAffirmed": true,
+  "userConfirmedReview": true,
+  "companyLegalName": "Acme Solutions LLC",
+  "entityType": "wyoming-llc",
+  "stateOfFormation": "Wyoming",
+  "contactEmail": "hello@acme-solutions.com",
+  "contactPhone": "307-555-0100",
+  "physicalAddress": "123 Main St, Cheyenne, WY 82001",
+  "signerName": "Jane Doe",
+  "signerTitle": "Member",
+  "signingDate": "2026-08-06",
+  "fieldProvenances": {
+    "companyLegalName": "extracted",
+    "signerName": "manual"
+  }
+}
