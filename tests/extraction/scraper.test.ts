@@ -108,6 +108,21 @@ describe("T043 — scraper fixture tests", () => {
     expect(block.text).toContain("Legitimate Business Co.");
   });
 
+  // adversarial-p fixture: injection in <p> DOES survive pruning.
+  // This is intentional — the pruner's structural filter is the first layer
+  // only. The evidence verifier (verbatim check) and AI prompt
+  // context-credibility rules are the second and third layers. See
+  // tests/extraction/extractor.test.ts for the full defence-chain assertions.
+  it("adversarial-p: injection <p> SURVIVES pruning (honest layering — defence is at extraction layer)", () => {
+    const block = prunePage(`${baseUrl}/adversarial-p.html`, fixture("adversarial-p.html"));
+    expect(block.text).toContain("FRAUD LLC");
+  });
+
+  it("adversarial-p: legitimate footer name is still retained", () => {
+    const block = prunePage(`${baseUrl}/adversarial-p.html`, fixture("adversarial-p.html"));
+    expect(block.text).toContain("Legitimate Business Co.");
+  });
+
   it("no-name: non-matching paragraphs outside footer are excluded", () => {
     const block = prunePage(`${baseUrl}/no-name.html`, fixture("no-name.html"));
     expect(block.text).not.toContain("We make great products");

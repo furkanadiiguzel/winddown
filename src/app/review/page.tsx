@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useFormState } from "@/lib/form-state";
 import { STUB_EXTRACTION_RESULT } from "@/lib/stubs/extraction-result";
 import { FieldCard } from "@/components/FieldCard";
@@ -16,6 +16,9 @@ import { Label } from "@/components/ui/label";
 import type { ExtractionResult, ExtractedField, AbsentField } from "@/schemas/extraction";
 import type { IntakeState } from "@/schemas/intake";
 import { isAbsent, isLowConfidenceLocked } from "@/lib/confidence-gate";
+import { StartOverLink } from "@/components/StartOverLink";
+import { getSupportedTemplate } from "@/lib/pdf/form-template-registry";
+import wyomingConfig from "@/config/wyoming";
 
 // Section IDs for scroll/step tracking
 type Section = "review" | "gaps" | "certification" | "preview";
@@ -39,11 +42,26 @@ function getExtractedValue(
 
 export default function ReviewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const store = useFormState();
 
-  // Load stub data if in stub mode
-  const extractionResult: ExtractionResult =
-    process.env.NEXT_PUBLIC_STUB === "true" ? STUB_EXTRACTION_RESULT : { fields: {}, pagesAnalyzed: [], analysisMode: "extraction" };
+  // manual=true → user-initiated manual entry from the landing page "Skip" link
+  // distinct from analysisMode==='manual-fallback' (AI/scrape failure from /analyze)
+  const isManualEntry = searchParams.get("manual") === "true";
+
+  // Build ExtractionResult from store (populated by /analyze SSE), or stub in dev.
+  // In manual-entry mode the fields object is empty by design.
+  const extractionResult: ExtractionResult = isManualEntry
+    ? { fields: {}, pagesAnalyzed: [], analysisMode: "extraction" }
+    : process.env.NEXT_PUBLIC_STUB === "true"
+    ? STUB_EXTRACTION_RESULT
+    : {
+        fields: store.extractedFields,
+        pagesAnalyzed: store.pagesAnalyzed,
+        // FormState.analysisMode includes "manual-entry" but ExtractionResult doesn't
+        analysisMode: (store.analysisMode === "manual-fallback" ? "manual-fallback" : "extraction") as "extraction" | "manual-fallback",
+        failureReason: store.failureReason ?? undefined,
+      };
 
   // Current section
   const [currentSection, setCurrentSection] = useState<Section>("review");
@@ -82,6 +100,10 @@ export default function ReviewPage() {
     }),
     [store, extractionResult.fields, companyLegalName]
   );
+
+  // T055 — unsupported entity type check
+  const currentEntityType = store.entityType || "wyoming-llc";
+  const isUnsupportedEntityType = !getSupportedTemplate(currentEntityType);
 
   // Preview intake state (for PdfPreview)
   const previewIntakeState = useMemo(
@@ -250,18 +272,37 @@ export default function ReviewPage() {
   return (
     <main className="min-h-screen bg-zinc-50 py-10 px-4">
       <div className="max-w-2xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Review your dissolution form</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Check that all information is correct before certifying and downloading.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-900">Review your dissolution form</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              Check that all information is correct before certifying and downloading.
+            </p>
+          </div>
+          <StartOverLink />
         </div>
+
+        {/* ── Manual-fallback banner (AI/scrape failure, distinct from user-initiated manual entry) ── */}
+        {extractionResult.analysisMode === "manual-fallback" && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="alert">
+            <p className="font-medium">We couldn&apos;t read your site automatically.</p>
+            <p className="mt-1">
+              {extractionResult.failureReason?.errorClass === "robots_blocked"
+                ? "The site's robots.txt disallows automated access."
+                : "The automated analysis did not complete. Please fill in your company details below."}
+            </p>
+          </div>
+        )}
 
         {/* ── Section 1: Extraction Review Board ── */}
         <section aria-labelledby="review-heading">
           <Card>
             <CardHeader>
-              <CardTitle id="review-heading">Step 1 — Extracted information</CardTitle>
+              <CardTitle id="review-heading">
+                {isManualEntry || extractionResult.analysisMode === "manual-fallback"
+                  ? "Step 1 — Company information"
+                  : "Step 1 — Extracted information"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {renderExtractedField("companyLegalName", "Company legal name")}
@@ -352,6 +393,27 @@ export default function ReviewPage() {
                   />
                 </div>
 
+                {/* T055 — unsupported entity type notice */}
+                {isUnsupportedEntityType && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="alert">
+                    <p className="font-medium">Entity type not yet supported</p>
+                    <p className="mt-1">
+                      Winddown currently supports Wyoming LLCs only. For{" "}
+                      <strong>{currentEntityType}</strong> dissolution forms, please visit the{" "}
+                      <a
+                        href={wyomingConfig.sosFormsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        Wyoming Secretary of State forms page
+                      </a>
+                      .
+                    </p>
+                    <LegalDisclaimer />
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="stateConfirmed"
@@ -371,6 +433,7 @@ export default function ReviewPage() {
               <div className="mt-4">
                 <Button
                   onClick={handleContinueToCertification}
+                  disabled={isUnsupportedEntityType}
                   className="w-full"
                 >
                   Continue to Certification

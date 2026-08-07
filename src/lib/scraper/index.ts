@@ -33,6 +33,12 @@ export class Tier2UnavailableError extends Error {
   }
 }
 
+export interface ScrapeOptions {
+  /** Optional callback invoked synchronously as each event fires. Used by
+   *  the SSE route to push events to the client without buffering. */
+  onEvent?: (event: ScrapeEvent) => void;
+}
+
 /**
  * Orchestrates the full scraping pipeline for a single URL:
  * SSRF guard → robots.txt → Tier 1 fetch → optional Tier 2 fallback →
@@ -43,17 +49,23 @@ export class Tier2UnavailableError extends Error {
  */
 export async function scrape(
   url: string,
-  tier2?: ScraperTier
+  tier2?: ScraperTier,
+  options?: ScrapeOptions
 ): Promise<ScrapeResult> {
   const events: ScrapeEvent[] = [];
   const rawPages: Array<{ url: string; html: string }> = [];
+
+  function emit(event: ScrapeEvent) {
+    events.push(event);
+    options?.onEvent?.(event);
+  }
 
   // 1. SSRF guard on initial URL
   try {
     await checkUrl(url);
   } catch (err) {
     if (err instanceof SsrfBlockedError) {
-      events.push({ type: "ssrf_blocked", url });
+      emit({ type: "ssrf_blocked", url });
       return { pages: [], events, errorClass: "ssrf_blocked" };
     }
     return { pages: [], events, errorClass: "ssrf_error" };
@@ -62,12 +74,12 @@ export async function scrape(
   // 2. robots.txt check
   const allowed = await isAllowed(url, USER_AGENT);
   if (!allowed) {
-    events.push({ type: "robots_blocked", url });
+    emit({ type: "robots_blocked", url });
     return { pages: [], events, errorClass: "robots_blocked" };
   }
 
   // 3. Tier 1 fetch of homepage
-  events.push({ type: "fetching_home", url });
+  emit({ type: "fetching_home", url });
   let homeResult: Awaited<ReturnType<typeof fetchPage>>;
   let homeHtml: string;
 
@@ -95,32 +107,32 @@ export async function scrape(
       rawPages[rawPages.length - 1] = { url, html: homeHtml };
     } catch (err) {
       if (err instanceof Tier2UnavailableError) {
-        events.push({ type: "tier2_unavailable" });
+        emit({ type: "tier2_unavailable" });
       }
       // Continue with thin Tier 1 result
     }
   } else if (homeResult.bodyText.length < SPA_BODY_THRESHOLD) {
-    events.push({ type: "tier2_unavailable" });
+    emit({ type: "tier2_unavailable" });
   }
 
   // 5. Link discovery on homepage HTML
   const candidateUrls = discoverLinks(url, homeHtml);
-  events.push({ type: "found_pages", urls: candidateUrls });
+  emit({ type: "found_pages", urls: candidateUrls });
 
   // 6. Fetch candidate pages (up to 4), with SSRF guard on each redirect hop
   for (const candidateUrl of candidateUrls) {
-    events.push({ type: "fetching_page", url: candidateUrl });
+    emit({ type: "fetching_page", url: candidateUrl });
 
     try {
       await checkUrl(candidateUrl);
     } catch {
-      events.push({ type: "ssrf_blocked", url: candidateUrl });
+      emit({ type: "ssrf_blocked", url: candidateUrl });
       continue;
     }
 
     const allowed = await isAllowed(candidateUrl, USER_AGENT);
     if (!allowed) {
-      events.push({ type: "robots_blocked", url: candidateUrl });
+      emit({ type: "robots_blocked", url: candidateUrl });
       continue;
     }
 

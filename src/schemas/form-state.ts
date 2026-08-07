@@ -35,6 +35,10 @@ export const FormStateSchema = z.object({
   userConfirmedReview: z.boolean(),
 
   manualEntryMode: z.boolean(),
+
+  // Populated after a successful /api/analyze call
+  pagesAnalyzed: z.array(z.string()),
+  failureReason: z.object({ errorClass: z.string(), message: z.string() }).nullable(),
 });
 
 export type FlowStep = z.infer<typeof FlowStepSchema>;
@@ -53,4 +57,6 @@ export const initialFormState: FormState = {
   certificationAffirmed: false,
   userConfirmedReview: false,
   manualEntryMode: false,
+  pagesAnalyzed: [],
+  failureReason: null,
 };
