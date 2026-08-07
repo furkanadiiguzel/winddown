@@ -1,18 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useFormState } from "@/lib/form-state";
-import type { ExtractedField } from "@/schemas/extraction";
-
-// Helpers mirroring the gate logic in /review/page.tsx
-function isAbsent(field: unknown): boolean {
-  return typeof field === "object" && field !== null && "status" in field;
-}
-
-function isLowConfidenceLocked(fields: Record<string, unknown>): boolean {
-  const field = fields["companyLegalName"];
-  if (!field || isAbsent(field)) return false;
-  const extracted = field as ExtractedField;
-  return extracted.confidence === "low" && !extracted.userOverridden;
-}
+import { isAbsent, isLowConfidenceLocked } from "@/lib/confidence-gate";
+import type { ExtractedField, AbsentField } from "@/schemas/extraction";
 
 const baseExtracted: ExtractedField = {
   fieldId: "companyLegalName",
@@ -30,32 +19,38 @@ describe("FR-009a — companyLegalName low-confidence acknowledgement gate", () 
   });
 
   it("high confidence: gate is NOT locked (user can advance freely)", () => {
-    const fields = { companyLegalName: { ...baseExtracted, confidence: "high" } };
-    expect(isLowConfidenceLocked(fields)).toBe(false);
+    const field = { ...baseExtracted, confidence: "high" } as ExtractedField;
+    expect(isLowConfidenceLocked(field, undefined)).toBe(false);
   });
 
   it("medium confidence: gate is NOT locked", () => {
-    const fields = { companyLegalName: { ...baseExtracted, confidence: "medium" } };
-    expect(isLowConfidenceLocked(fields)).toBe(false);
+    const field = { ...baseExtracted, confidence: "medium" } as ExtractedField;
+    expect(isLowConfidenceLocked(field, undefined)).toBe(false);
   });
 
   it("low confidence + not overridden: gate IS locked (blocks advancement)", () => {
-    const fields = { companyLegalName: { ...baseExtracted, confidence: "low", userOverridden: false } };
-    expect(isLowConfidenceLocked(fields)).toBe(true);
+    const field = { ...baseExtracted, confidence: "low", userOverridden: false } as ExtractedField;
+    expect(isLowConfidenceLocked(field, undefined)).toBe(true);
   });
 
   it("low confidence + userOverridden=true: gate is unlocked (user acknowledged)", () => {
-    const fields = { companyLegalName: { ...baseExtracted, confidence: "low", userOverridden: true } };
-    expect(isLowConfidenceLocked(fields)).toBe(false);
+    const field = { ...baseExtracted, confidence: "low", userOverridden: true } as ExtractedField;
+    expect(isLowConfidenceLocked(field, undefined)).toBe(false);
   });
 
   it("absent companyLegalName: gate is NOT locked (completeness gate handles absent fields, not confidence gate — FR-009b)", () => {
-    const fields = { companyLegalName: { fieldId: "companyLegalName", status: "absent" } };
-    expect(isLowConfidenceLocked(fields)).toBe(false);
+    const field: AbsentField = { fieldId: "companyLegalName", status: "absent" };
+    expect(isLowConfidenceLocked(field, undefined)).toBe(false);
   });
 
   it("missing companyLegalName key: gate is NOT locked", () => {
-    expect(isLowConfidenceLocked({})).toBe(false);
+    expect(isLowConfidenceLocked(undefined, undefined)).toBe(false);
+  });
+
+  it("storeOverride with userOverridden=true unlocks even when base field is low-confidence", () => {
+    const field = { ...baseExtracted, confidence: "low", userOverridden: false } as ExtractedField;
+    const storeOverride = { ...baseExtracted, confidence: "low", userOverridden: true } as ExtractedField;
+    expect(isLowConfidenceLocked(field, storeOverride)).toBe(false);
   });
 
   it("setFieldValue on companyLegalName sets userOverridden=true, unlocking gate", () => {
@@ -70,7 +65,7 @@ describe("FR-009a — companyLegalName low-confidence acknowledgement gate", () 
 
     const updated = useFormState.getState().extractedFields["companyLegalName"] as ExtractedField;
     expect(updated.userOverridden).toBe(true);
-    expect(isLowConfidenceLocked({ companyLegalName: updated })).toBe(false);
+    expect(isLowConfidenceLocked(updated, undefined)).toBe(false);
   });
 
   it("setFieldValue also resets certificationAffirmed (snapshot-bound invariant, FR-010)", () => {
@@ -88,11 +83,8 @@ describe("FR-009a — companyLegalName low-confidence acknowledgement gate", () 
   });
 
   it("gate is independent of other low-confidence fields (FR-009b)", () => {
-    // A low-confidence contactEmail does NOT lock the companyLegalName gate
-    const fields = {
-      companyLegalName: { ...baseExtracted, confidence: "high" },
-      contactEmail: { ...baseExtracted, fieldId: "contactEmail", confidence: "low", userOverridden: false },
-    };
-    expect(isLowConfidenceLocked(fields)).toBe(false);
+    const field = { ...baseExtracted, confidence: "high" } as ExtractedField;
+    // A low-confidence contactEmail does NOT affect the companyLegalName gate
+    expect(isLowConfidenceLocked(field, undefined)).toBe(false);
   });
 });

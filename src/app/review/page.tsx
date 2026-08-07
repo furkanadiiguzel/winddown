@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ExtractionResult, ExtractedField, AbsentField } from "@/schemas/extraction";
 import type { IntakeState } from "@/schemas/intake";
+import { isAbsent, isLowConfidenceLocked } from "@/lib/confidence-gate";
 
 // Section IDs for scroll/step tracking
 type Section = "review" | "gaps" | "certification" | "preview";
@@ -26,10 +27,6 @@ const REQUIRED_FIELDS: Array<keyof Pick<IntakeState, "companyLegalName" | "entit
   "signerTitle",
   "signingDate",
 ];
-
-function isAbsent(field: ExtractedField | AbsentField): field is AbsentField {
-  return "status" in field;
-}
 
 function getExtractedValue(
   fields: ExtractionResult["fields"],
@@ -61,15 +58,11 @@ export default function ReviewPage() {
       ? (store.extractedFields["companyLegalName"] as ExtractedField).value ?? ""
       : getExtractedValue(extractionResult.fields, "companyLegalName");
 
-  // Check low-confidence gate for companyLegalName (T027)
-  const companyLlcField = companyLegalNameField && !isAbsent(companyLegalNameField)
-    ? companyLegalNameField as ExtractedField
-    : null;
-
-  const isLowConfidenceLocked =
-    companyLlcField?.confidence === "low" &&
-    !companyLlcField.userOverridden &&
-    !(store.extractedFields["companyLegalName"] as ExtractedField | undefined)?.userOverridden;
+  // Check low-confidence gate for companyLegalName (T027 / FR-009a)
+  const lowConfidenceLocked = isLowConfidenceLocked(
+    companyLegalNameField,
+    store.extractedFields["companyLegalName"] as ExtractedField | undefined
+  );
 
   // Build current intake state from store + extraction
   const buildIntakeState = useCallback(
@@ -131,7 +124,7 @@ export default function ReviewPage() {
   }
 
   const handleContinueToGaps = () => {
-    if (isLowConfidenceLocked) return;
+    if (lowConfidenceLocked) return;
     if (!checkCompleteness()) return;
     setCurrentSection("gaps");
   };
@@ -230,13 +223,13 @@ export default function ReviewPage() {
               userConfirmedReview: false,
             }));
           }}
-          showConfirmAffordance={isCompanyName && isLowConfidenceLocked}
+          showConfirmAffordance={isCompanyName && lowConfidenceLocked}
           onConfirm={
             isCompanyName
               ? () => {
-                  if (companyLlcField) {
+                  if (companyLegalNameField && !isAbsent(companyLegalNameField)) {
                     const confirmed: ExtractedField = {
-                      ...companyLlcField,
+                      ...(companyLegalNameField as ExtractedField),
                       userOverridden: true,
                     };
                     useFormState.setState((s) => ({
@@ -279,7 +272,7 @@ export default function ReviewPage() {
 
           {currentSection === "review" && (
             <div className="mt-4 space-y-2">
-              {isLowConfidenceLocked && (
+              {lowConfidenceLocked && (
                 <p className="text-sm text-amber-700">
                   The company name has low confidence. Please confirm it is correct before continuing.
                 </p>
@@ -291,7 +284,7 @@ export default function ReviewPage() {
               )}
               <Button
                 onClick={handleContinueToGaps}
-                disabled={isLowConfidenceLocked}
+                disabled={lowConfidenceLocked}
                 className="w-full"
               >
                 Continue to Gap Completion
