@@ -7,10 +7,11 @@ import path from "path";
 //   "Daytime Phone Number", "Email",
 //   "Check Box1.0", "Check Box1.1", "Check Box1.2", "Check Box1.3"
 //
-// "Certification check box" is structurally absent from fieldMap — it must
-// be signed by the human in ink; no code path may write to it.
-// The four "Check Box" fields are the entity-type checkboxes (LLC dissolution
-// reason codes); we default to the first one (voluntary dissolution).
+// "Certification check box" = the W.S. 17-29-701 statutory declaration checkbox.
+// The system checks it when certificationAffirmed=true (user ticked the UI checkbox).
+// This is NOT the signature line — the signature line is a physical printed line on the
+// form where the human signs in ink. The signature line has no AcroForm field entry.
+// The four "Check Box1.x" fields are dissolution-reason checkboxes; Check Box1.0 = voluntary.
 
 export const wyomingLlcTemplate: FormTemplate = {
   id: "wyoming-llc-dissolution",
@@ -19,14 +20,16 @@ export const wyomingLlcTemplate: FormTemplate = {
   supportedByProduct: true,
   fieldMap: {
     companyLegalName: { type: "acroform", pdfFieldName: "Name of LLC" },
+    // signingDate value is pre-formatted to mm/dd/yyyy by the fill service
     signingDate: { type: "acroform", pdfFieldName: "Date signed" },
     signerName: { type: "acroform", pdfFieldName: "Printed Name" },
     signerTitle: { type: "acroform", pdfFieldName: "Title" },
     contactPerson: { type: "acroform", pdfFieldName: "Contact Person" },
     contactPhone: { type: "acroform", pdfFieldName: "Daytime Phone Number" },
     contactEmail: { type: "acroform", pdfFieldName: "Email" },
-    // Dissolution reason: voluntary (Check Box1.0 = voluntary dissolution)
+    // Statutory certification declaration — checked iff certificationAffirmed=true
+    certificationAffirmed: { type: "acroform", pdfFieldName: "Certification check box" },
+    // Dissolution reason: voluntary dissolution
     dissolutionReason: { type: "acroform", pdfFieldName: "Check Box1.0" },
-    // "Certification check box" is intentionally absent — signature is ink-only
   },
 };

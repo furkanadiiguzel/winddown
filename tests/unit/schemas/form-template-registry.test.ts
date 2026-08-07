@@ -30,15 +30,13 @@ describe("FormTemplate registry", () => {
     expect(t).toBeUndefined();
   });
 
-  it("LLC template fieldMap does not include the certification checkbox field", () => {
+  it("LLC template fieldMap includes the certification checkbox (statutory declaration)", () => {
     const t = getTemplate("wyoming-llc")!;
     const fieldNames = Object.values(t.fieldMap).map((e) =>
       "pdfFieldName" in e ? e.pdfFieldName : ""
     );
-    // "Certification check box" is the only prohibited field (signature is ink-only)
-    const hasCertificationCheckbox = fieldNames.some((n) =>
-      /certification check box/i.test(n)
-    );
-    expect(hasCertificationCheckbox).toBe(false);
+    // "Certification check box" = W.S. 17-29-701 statutory declaration; system checks it
+    // when certificationAffirmed=true. The SIGNATURE LINE (ink) is not an AcroForm field.
+    expect(fieldNames).toContain("Certification check box");
   });
 });

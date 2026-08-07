@@ -10,10 +10,22 @@ export interface FillPdfOptions {
 }
 
 /**
+ * Converts an ISO date string (yyyy-mm-dd) to the mm/dd/yyyy format
+ * required by the Wyoming dissolution form.
+ */
+function formatDateForForm(isoDate: string): string {
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return isoDate; // pass through if already formatted or invalid
+  const [, yyyy, mm, dd] = match;
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+/**
  * Fills a dissolution form PDF with confirmed IntakeState values.
  * Attempts AcroForm fill first; falls back to coordinate drawText.
- * Signature line ("Certification check box") is structurally absent from
- * the fieldMap and is never written.
+ * The signature line is a physical printed line — it has no AcroForm entry
+ * and is never written. The certification checkbox IS written when
+ * certificationAffirmed=true (it is the W.S. 17-29-701 statutory declaration).
  */
 export async function fillPdf(options: FillPdfOptions): Promise<Uint8Array> {
   const { template, intakeState, mode } = options;
@@ -38,11 +50,14 @@ export async function fillPdf(options: FillPdfOptions): Promise<Uint8Array> {
     companyLegalName: intakeState.companyLegalName,
     signerName: intakeState.signerName,
     signerTitle: intakeState.signerTitle,
-    signingDate: intakeState.signingDate,
+    // Official form requires mm/dd/yyyy format
+    signingDate: formatDateForForm(intakeState.signingDate),
     contactEmail: intakeState.contactEmail ?? "",
     contactPhone: intakeState.contactPhone ?? "",
     contactPerson: intakeState.signerName, // contact person defaults to signer
-    dissolutionReason: true, // voluntary dissolution checkbox
+    // Certification checkbox: checked iff user affirmed (UI checkbox drives PDF checkbox)
+    certificationAffirmed: intakeState.certificationAffirmed,
+    dissolutionReason: true, // voluntary dissolution
   };
 
   for (const [fieldId, entry] of Object.entries(template.fieldMap)) {
