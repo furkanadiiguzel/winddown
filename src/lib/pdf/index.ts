@@ -10,6 +10,34 @@ export interface FillPdfOptions {
 }
 
 /**
+ * Normalize a string to WinAnsi-safe characters for pdf-lib standard fonts.
+ * NFD decomposition strips most combining diacritics; remaining edge cases
+ * (ı, ł, ð, ø, etc.) are mapped explicitly.
+ */
+function toWinAnsi(text: string): string {
+  const REPLACEMENTS: Record<string, string> = {
+    ı: "i", İ: "I", // Turkish dotless i / dotted I
+    ğ: "g", Ğ: "G", // Turkish g-breve
+    ş: "s", Ş: "S", // Turkish s-cedilla
+    ł: "l", Ł: "L", // Polish l-stroke
+    ð: "d", Ð: "D", // Eth
+    þ: "th", Þ: "Th", // Thorn
+    ø: "o", Ø: "O", // O-stroke
+    æ: "ae", Æ: "AE",
+    œ: "oe", Œ: "OE",
+    ß: "ss",
+  };
+  // First pass: explicit replacements
+  let s = text.replace(/[ıİğĞşŞłŁðÐþÞøØæÆœŒß]/g, (ch) => REPLACEMENTS[ch] ?? ch);
+  // Second pass: NFD decomposition strips combining diacritical marks (é → e, ü → u, etc.)
+  // ü, ö, ç, etc. ARE in WinAnsi, but decompose safely as a fallback
+  s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Third pass: drop anything still outside printable ASCII + Latin-1 Supplement (0x20–0xFF)
+  s = s.replace(/[^\x20-\xFF]/g, "?");
+  return s;
+}
+
+/**
  * Converts an ISO date string (yyyy-mm-dd) to the mm/dd/yyyy format
  * required by the Wyoming dissolution form.
  */
@@ -76,7 +104,7 @@ export async function fillPdf(options: FillPdfOptions): Promise<Uint8Array> {
           else checkbox.uncheck();
         } else if (typeof value === "string" && value !== "") {
           const textField = form.getTextField(entry.pdfFieldName);
-          textField.setText(value);
+          textField.setText(toWinAnsi(value));
         }
       } catch {
         // AcroForm field not found — fall through to coordinate mode if defined
@@ -86,7 +114,7 @@ export async function fillPdf(options: FillPdfOptions): Promise<Uint8Array> {
       const page = pages[entry.page];
       if (!page) continue;
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      page.drawText(value, {
+      page.drawText(toWinAnsi(value), {
         x: entry.x,
         y: entry.y,
         size: entry.size ?? 11,

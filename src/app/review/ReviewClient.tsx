@@ -23,13 +23,6 @@ import wyomingConfig from "@/config/wyoming";
 // Section IDs for scroll/step tracking
 type Section = "review" | "gaps" | "certification" | "preview";
 
-const REQUIRED_FIELDS: Array<keyof Pick<IntakeState, "companyLegalName" | "entityType" | "signerName" | "signerTitle" | "signingDate">> = [
-  "companyLegalName",
-  "entityType",
-  "signerName",
-  "signerTitle",
-  "signingDate",
-];
 
 function getExtractedValue(
   fields: ExtractionResult["fields"],
@@ -111,29 +104,6 @@ export default function ReviewClient() {
     [buildIntakeState]
   );
 
-  // --- Completeness gate (T028) ---
-  const checkCompleteness = useCallback((): boolean => {
-    const errors: Record<string, string> = {};
-
-    // Derive current values
-    const values: Record<string, string> = {
-      companyLegalName,
-      entityType: store.entityType || "wyoming-llc",
-      signerName: store.signerName,
-      signerTitle: store.signerTitle,
-      signingDate: store.signingDate,
-    };
-
-    for (const field of REQUIRED_FIELDS) {
-      if (!values[field] || values[field].trim() === "") {
-        errors[field] = `${fieldLabel(field)} is required`;
-      }
-    }
-
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  }, [companyLegalName, store.entityType, store.signerName, store.signerTitle, store.signingDate]);
-
   function fieldLabel(field: string): string {
     const labels: Record<string, string> = {
       companyLegalName: "Company legal name",
@@ -145,14 +115,43 @@ export default function ReviewClient() {
     return labels[field] ?? field;
   }
 
+  // Step 1 gate: only company name must be present before going to gap completion
+  const checkStep1 = useCallback((): boolean => {
+    const errors: Record<string, string> = {};
+    if (!companyLegalName || companyLegalName.trim() === "") {
+      errors.companyLegalName = "Company legal name is required";
+    }
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [companyLegalName]);
+
+  // Step 2 gate: signer details must be filled before certification
+  const checkStep2 = useCallback((): boolean => {
+    const errors: Record<string, string> = {};
+    const step2Fields = ["signerName", "signerTitle", "signingDate"] as const;
+    const values: Record<string, string> = {
+      signerName: store.signerName,
+      signerTitle: store.signerTitle,
+      signingDate: store.signingDate,
+    };
+    for (const field of step2Fields) {
+      if (!values[field] || values[field].trim() === "") {
+        errors[field] = `${fieldLabel(field)} is required`;
+      }
+    }
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [store.signerName, store.signerTitle, store.signingDate]);
+
   const handleContinueToGaps = () => {
     if (lowConfidenceLocked) return;
-    if (!checkCompleteness()) return;
+    if (!checkStep1()) return;
+    setValidationErrors({});
     setCurrentSection("gaps");
   };
 
   const handleContinueToCertification = () => {
-    if (!checkCompleteness()) return;
+    if (!checkStep2()) return;
     setCurrentSection("certification");
   };
 
@@ -178,8 +177,13 @@ export default function ReviewClient() {
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: "PDF generation failed." }));
-        setDownloadError((err as { message?: string }).message ?? "PDF generation failed.");
+        const err = await response.json().catch(() => ({}));
+        const detail = (err as { message?: string; details?: { field: string; message: string }[] });
+        const msg = detail.message
+          ?? detail.details?.map((d) => `${d.field || "root"}: ${d.message}`).join("; ")
+          ?? `HTTP ${response.status}`;
+        setDownloadError(`PDF generation failed: ${msg}`);
+        console.error("[download] API error", response.status, err);
         setDownloading(false);
         return;
       }
