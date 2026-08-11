@@ -311,6 +311,8 @@ export default function ReviewClient() {
             <CardContent className="space-y-4">
               {renderExtractedField("companyLegalName", "Company legal name")}
               {renderExtractedField("contactEmail", "Contact email")}
+              {renderExtractedField("contactPhone", "Contact phone")}
+              {renderExtractedField("physicalAddress", "Physical address")}
               <LegalDisclaimer />
             </CardContent>
           </Card>
@@ -388,13 +390,18 @@ export default function ReviewClient() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="entityType">Entity type</Label>
-                  <Input
+                  <Label htmlFor="entityType">Entity type &amp; dissolution form *</Label>
+                  <select
                     id="entityType"
                     value={store.entityType || "wyoming-llc"}
                     onChange={(e) => store.setFieldValue("entityType", e.target.value)}
-                    placeholder="wyoming-llc"
-                  />
+                    className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                  >
+                    <option value="wyoming-llc">Wyoming LLC — Articles of Dissolution (W.S. 17-29-701)</option>
+                    <option value="wyoming-corp-directors">Wyoming Corporation — Dissolution by Directors &amp; Shareholders</option>
+                    <option value="wyoming-corp-shareholders">Wyoming Corporation — Dissolution by Incorporators or Initial Directors</option>
+                  </select>
+                  <p className="text-xs text-zinc-500">Select the form that matches your entity. If unsure, check your original filing documents.</p>
                 </div>
 
                 {/* T055 — unsupported entity type notice */}

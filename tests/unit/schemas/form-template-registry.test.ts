@@ -9,11 +9,18 @@ describe("FormTemplate registry", () => {
     expect(t?.supportedByProduct).toBe(true);
   });
 
-  it("getTemplate('wyoming-corp') returns the corp template", () => {
-    const t = getTemplate("wyoming-corp");
+  it("getTemplate('wyoming-corp-directors') returns the directors corp template", () => {
+    const t = getTemplate("wyoming-corp-directors");
     expect(t).toBeDefined();
-    expect(t?.entityType).toBe("wyoming-corp");
-    expect(t?.supportedByProduct).toBe(false);
+    expect(t?.entityType).toBe("wyoming-corp-directors");
+    expect(t?.supportedByProduct).toBe(true);
+  });
+
+  it("getTemplate('wyoming-corp-shareholders') returns the shareholders corp template", () => {
+    const t = getTemplate("wyoming-corp-shareholders");
+    expect(t).toBeDefined();
+    expect(t?.entityType).toBe("wyoming-corp-shareholders");
+    expect(t?.supportedByProduct).toBe(true);
   });
 
   it("getTemplate returns undefined for unknown entity type", () => {
@@ -21,13 +28,15 @@ describe("FormTemplate registry", () => {
   });
 
   it("getSupportedTemplate returns LLC (supported)", () => {
-    const t = getSupportedTemplate("wyoming-llc");
-    expect(t).toBeDefined();
+    expect(getSupportedTemplate("wyoming-llc")).toBeDefined();
   });
 
-  it("getSupportedTemplate returns undefined for corp (not yet supported)", () => {
-    const t = getSupportedTemplate("wyoming-corp");
-    expect(t).toBeUndefined();
+  it("getSupportedTemplate returns corp-directors (supported)", () => {
+    expect(getSupportedTemplate("wyoming-corp-directors")).toBeDefined();
+  });
+
+  it("getSupportedTemplate returns corp-shareholders (supported)", () => {
+    expect(getSupportedTemplate("wyoming-corp-shareholders")).toBeDefined();
   });
 
   it("LLC template fieldMap includes the certification checkbox (statutory declaration)", () => {
