@@ -64,15 +64,20 @@ export async function extract(scrapeResult: ScrapeResult): Promise<ExtractionRes
       // Build ExtractionResult — verify each field's evidence
       const fields: ExtractionResult["fields"] = {};
 
+      const totalChars = pageBlocks.reduce((a, p) => a + p.text.length, 0);
+      console.info(`[extractor] pages=${pageBlocks.length} total_chars=${totalChars} ai_fields_reported=${Object.keys(rawFields).length}`);
+
       for (const fieldId of EXTRACTABLE_FIELD_IDS) {
         const rawField = rawFields[fieldId];
         if (!rawField) {
+          console.info(`[extractor] field=${fieldId} ai_reported=false`);
           const absent: AbsentField = { fieldId, status: "absent" };
           fields[fieldId] = absent;
           continue;
         }
 
         const verdict = verifyEvidence(rawField, pageBlocks);
+        console.info(`[extractor] field=${fieldId} ai_reported=true verdict=${verdict} evidence_len=${rawField.evidence.length} value_len=${rawField.value.length} confidence=${rawField.confidence}`);
         if (verdict === "rejected") {
           const rejected: AbsentField = { fieldId, status: "rejected" };
           fields[fieldId] = rejected;
