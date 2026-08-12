@@ -107,6 +107,7 @@ export async function scrape(
   emit({ type: "fetching_home", url });
 
   let homeHtml = "";
+  let homeRawHtml = "";
   let homeSpaCandidate = false;
 
   try {
@@ -116,6 +117,7 @@ export async function scrape(
       <footer>${homeResult.footerText}</footer>
       <div id="body-text">${homeResult.bodyText}</div>
     </body></html>`;
+    homeRawHtml = homeResult.rawHtml;
     rawPages.push({ url, html: homeResult.rawHtml });
     homeSpaCandidate = homeResult.bodyText.length < SPA_BODY_THRESHOLD;
   } catch {
@@ -157,8 +159,10 @@ export async function scrape(
 
     // Tier 2 unavailable + SPA shell detected → try Firecrawl for JS rendering
     emit({ type: "tier3_jina" });
+    // Use Tier 1 raw HTML to discover real sub-page links, pass them to Firecrawl
+    const spaDiscoveredUrls = discoverLinks(url, homeRawHtml);
     try {
-      const { pages: fcPages } = await fetchViaFirecrawl(url);
+      const { pages: fcPages } = await fetchViaFirecrawl(url, spaDiscoveredUrls);
       // Replace rawPages with Firecrawl-rendered content
       rawPages.length = 0;
       for (const p of fcPages) {
