@@ -45,6 +45,24 @@ export function prunePage(url: string, html: string): PageBlock {
     } catch { /* skip malformed JSON-LD */ }
   });
 
+  // Extract Schema.org microdata (itemprop attributes) BEFORE any removal
+  // Many business sites use HTML microdata for address/phone even when CSS-hidden
+  const microdataLines: string[] = [];
+  const streetAddress = $('[itemprop="streetAddress"]').first().text().trim();
+  const locality = $('[itemprop="addressLocality"]').first().text().trim();
+  const region = $('[itemprop="addressRegion"]').first().text().trim();
+  const postalCode = $('[itemprop="postalCode"]').first().text().trim();
+  const microPhone = $('[itemprop="telephone"]').first().text().trim();
+  const microEmail = $('[itemprop="email"]').first().text().trim();
+  const microName = $('[itemprop="name"]').first().text().trim();
+  if (streetAddress) {
+    const addr = [streetAddress, locality, region, postalCode].filter(Boolean).join(", ");
+    microdataLines.push(`Address: ${addr}`);
+  }
+  if (microPhone) microdataLines.push(`Phone: ${microPhone}`);
+  if (microEmail) microdataLines.push(`Email: ${microEmail}`);
+  if (microName) microdataLines.push(`Name: ${microName}`);
+
   // Extract tel: and mailto: href attributes BEFORE removing any elements
   // Many sites put phone/email in nav or footer links; .text() misses href values
   const telNumbers: string[] = [];
@@ -125,7 +143,7 @@ export function prunePage(url: string, html: string): PageBlock {
   const joined = parts.join("\n");
 
   // Prepend structured contact info so AI always sees it first
-  const structuredLines: string[] = [...jsonLdText];
+  const structuredLines: string[] = [...jsonLdText, ...microdataLines];
   if (telNumbers.length > 0) structuredLines.push(`Phone: ${[...new Set(telNumbers)].join(", ")}`);
   if (mailtoEmails.length > 0) structuredLines.push(`Email: ${[...new Set(mailtoEmails)].join(", ")}`);
   const jsonLdBlock = structuredLines.length > 0
