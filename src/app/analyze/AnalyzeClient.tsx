@@ -23,8 +23,11 @@ const EVENT_LABELS: Record<string, string> = {
 
 const ERROR_MESSAGES: Record<string, string> = {
   ssrf_blocked: "That URL points to a private or restricted address and cannot be analysed.",
-  robots_disallowed: "The site's robots.txt disallows automated access.",
-  fetch_failed: "We couldn't reach the site. Please check the URL and try again.",
+  ssrf_error: "We couldn't verify that URL is safe to access. Please check the URL and try again.",
+  robots_blocked: "The site's robots.txt disallows automated access. Please enter your details manually.",
+  robots_disallowed: "The site's robots.txt disallows automated access. Please enter your details manually.",
+  fetch_error: "We couldn't reach that site. It may be down, blocking scrapers, or require a login. Please enter your details manually.",
+  fetch_failed: "We couldn't reach that site. It may be down, blocking scrapers, or require a login. Please enter your details manually.",
   too_large: "The site's content is too large to analyse.",
   timeout: "The request timed out. The site may be slow or unreachable.",
   ai_auth: "AI service authentication failed. Please contact support.",
