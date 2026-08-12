@@ -80,7 +80,7 @@ SCANNING TIPS:
   • Phone numbers frequently sit on the SAME LINE as, or the line adjacent to, a street address — when you find an address, re-read its neighborhood character by character.
   • They also appear as bare link text ("(307) 637-5151") with no label — a 10-digit pattern is sufficient, no "Phone:" label required.
   • "Call Now" buttons and tel-link texts count.
-EXCLUSIONS & DEMOTIONS: numbers labeled "fax" → only if no other number exists, confidence low. SMS shortcodes and opt-out numbers inside terms boilerplate ("text STOP to +1 (855) 685-1573") → these are messaging-vendor numbers; use only if NOTHING else exists, confidence low. Numbers inside quoted third-party content → excluded.
+EXCLUSIONS & DEMOTIONS: numbers labeled "fax" → only if no other number exists, confidence low. SMS shortcodes and opt-out numbers inside terms boilerplate ("text STOP to +1 (855) 685-1573") → these are messaging-vendor numbers; use only if NOTHING else exists, confidence low. Numbers inside quoted third-party content → excluded. Form input placeholder text like "000-000-0000" or "(000) 000-0000" → these are HTML input masks, NEVER real phone numbers; exclude always.
 MULTIPLE NUMBERS: prefer footer/contact-block number; if a toll-free and a local number sit together, either is acceptable — prefer the one adjacent to the address.
 
 ━━━ FIELD 3: contactEmail ━━━

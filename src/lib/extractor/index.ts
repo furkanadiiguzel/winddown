@@ -66,12 +66,6 @@ export async function extract(scrapeResult: ScrapeResult): Promise<ExtractionRes
 
       const totalChars = pageBlocks.reduce((a, p) => a + p.text.length, 0);
       console.info(`[extractor] pages=${pageBlocks.length} total_chars=${totalChars} ai_fields_reported=${Object.keys(rawFields).length}`);
-      // TEMP DEBUG: log page content
-      for (const p of pageBlocks) {
-        const hasPhone = /\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/.test(p.text);
-        const hasEmail = /@[a-z0-9.-]+\.[a-z]{2,}/i.test(p.text);
-        console.info(`[extractor:page] url=${p.url} len=${p.text.length} hasPhone=${hasPhone} hasEmail=${hasEmail} full=${p.text.replace(/\n/g, "↵")}`);
-      }
 
       for (const fieldId of EXTRACTABLE_FIELD_IDS) {
         const rawField = rawFields[fieldId];
