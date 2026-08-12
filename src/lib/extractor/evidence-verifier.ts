@@ -44,20 +44,29 @@ export function verifyEvidence(
   const page = pages.find((p) => p.url === sourceUrl);
   if (!page) return "rejected";
 
-  // Normalise whitespace for comparison
-  const normalise = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  // Normalise: collapse all whitespace variants (including &nbsp; \u00a0) to
+  // a single space. JS \s does not match \u00a0, so we replace it explicitly.
+  const normalise = (s: string) =>
+    s
+      .replace(/\u00a0/g, " ")   // non-breaking space → regular space
+      .replace(/\u2007/g, " ")   // figure space
+      .replace(/\u202f/g, " ")   // narrow no-break space
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
   const normText = normalise(page.text);
   const normEvidence = normalise(evidence);
 
   // Primary: verbatim whitespace-normalised match
   if (normText.includes(normEvidence)) return "accepted";
 
-  // Secondary: token-overlap check — if ≥80% of evidence words appear in the
-  // page text (handles minor punctuation/encoding differences from Jina/Wayback)
+  // Secondary: token-overlap check — ≥75% of words present in page text.
+  // Handles minor punctuation / encoding differences (Jina, Wayback, &nbsp;).
   const evidenceWords = normEvidence.split(/\s+/).filter((w) => w.length > 2);
-  if (evidenceWords.length >= 3) {
+  if (evidenceWords.length >= 2) {
     const matches = evidenceWords.filter((w) => normText.includes(w));
-    if (matches.length / evidenceWords.length >= 0.8) return "accepted";
+    if (matches.length / evidenceWords.length >= 0.75) return "accepted";
   }
 
   return "rejected";

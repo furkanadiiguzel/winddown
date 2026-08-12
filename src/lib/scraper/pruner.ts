@@ -37,7 +37,12 @@ export function prunePage(url: string, html: string): PageBlock {
   const seen = new Set<string>();
 
   function add(raw: string) {
-    const t = raw.replace(/\s+/g, " ").trim();
+    const t = raw
+      .replace(/\u00a0/g, " ")  // non-breaking space
+      .replace(/\u2007/g, " ")  // figure space
+      .replace(/\u202f/g, " ")  // narrow no-break space
+      .replace(/\s+/g, " ")
+      .trim();
     if (t.length > 1 && !seen.has(t)) {
       seen.add(t);
       parts.push(t);
