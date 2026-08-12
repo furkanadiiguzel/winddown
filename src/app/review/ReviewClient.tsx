@@ -277,23 +277,35 @@ export default function ReviewClient() {
   };
 
   return (
-    <main className="min-h-screen bg-zinc-50 py-10 px-4">
-      <div className="max-w-2xl mx-auto space-y-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900">Review your dissolution form</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              Check that all information is correct before certifying and downloading.
-            </p>
+    <main className="min-h-screen bg-cream">
+      {/* Nav */}
+      <nav className="border-b-2 border-navy bg-cream px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-navy flex items-center justify-center">
+            <span className="font-display text-white text-lg leading-none">W</span>
           </div>
-          <StartOverLink />
+          <span className="font-display text-xl tracking-wide text-navy">WINDDOWN</span>
+        </div>
+        <StartOverLink />
+      </nav>
+
+      <div className="max-w-2xl mx-auto px-4 py-10 space-y-8">
+        <div>
+          <span className="inline-block bg-brand-yellow border-2 border-navy px-3 py-1 text-xs font-bold uppercase tracking-widest text-navy shadow-brutal-sm mb-4">
+            Review Form
+          </span>
+          <h1 className="font-display text-4xl sm:text-5xl uppercase text-navy leading-none">
+            Review Your<br />Dissolution Form
+          </h1>
+          <p className="mt-3 text-sm text-navy/60 font-medium">
+            Check that all information is correct before certifying and downloading.
+          </p>
         </div>
 
-        {/* ── Manual-fallback banner (AI/scrape failure, distinct from user-initiated manual entry) ── */}
         {extractionResult.analysisMode === "manual-fallback" && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="alert">
-            <p className="font-medium">We couldn&apos;t read your site automatically.</p>
-            <p className="mt-1">
+          <div className="border-2 border-navy bg-brand-yellow shadow-brutal p-4 space-y-1" role="alert">
+            <p className="font-bold uppercase tracking-wide text-sm text-navy">Couldn&apos;t read your site automatically.</p>
+            <p className="text-sm text-navy/70">
               {extractionResult.failureReason?.errorClass === "robots_blocked"
                 ? "The site's robots.txt disallows automated access."
                 : "The automated analysis did not complete. Please fill in your company details below."}
@@ -409,8 +421,8 @@ export default function ReviewClient() {
 
                 {/* T055 — unsupported entity type notice */}
                 {isUnsupportedEntityType && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="alert">
-                    <p className="font-medium">Entity type not yet supported</p>
+                  <div className="border-2 border-navy bg-brand-yellow shadow-brutal p-4 text-sm" role="alert">
+                    <p className="font-bold uppercase tracking-wide text-navy">Entity type not yet supported</p>
                     <p className="mt-1">
                       Winddown currently supports Wyoming LLCs only. For{" "}
                       <strong>{currentEntityType}</strong> dissolution forms, please visit the{" "}

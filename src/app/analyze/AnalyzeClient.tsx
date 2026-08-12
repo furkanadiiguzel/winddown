@@ -33,7 +33,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   ai_server_error: "The AI service encountered an error. Please try again.",
   ai_timeout: "The AI request timed out. Please try again.",
   tier2_unavailable: "Headless rendering is unavailable. You can enter details manually.",
-  // T059 — rate limit message per spec: explicit retry-after hint + manual CTA
   rate_limit_exceeded: "You've reached the analysis limit (5/hour). You can continue with manual entry now, or try again later.",
   internal_error: "An unexpected error occurred. Please try again.",
 };
@@ -50,16 +49,9 @@ export default function AnalyzeClient() {
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    if (!url) {
-      router.replace("/");
-      return;
-    }
+    if (!url) { router.replace("/"); return; }
 
-    // Abort any in-flight stream on remount
     esRef.current?.close();
-
-    // POST /api/analyze and consume SSE via fetch + ReadableStream
-    // (EventSource only supports GET; we use fetch for POST SSE)
     let cancelled = false;
 
     async function runAnalysis() {
@@ -101,7 +93,6 @@ export default function AnalyzeClient() {
 
               if (event.type === "done") {
                 const result = event.result as ExtractionResult;
-                // Write extraction result into Zustand store
                 useFormState.setState({
                   analysisMode: result.analysisMode,
                   extractedFields: result.fields,
@@ -115,7 +106,7 @@ export default function AnalyzeClient() {
                 setErrorClass((event.class as string) ?? "internal_error");
               }
             } catch {
-              // Malformed event — ignore
+              // malformed event — ignore
             }
           }
         }
@@ -129,47 +120,62 @@ export default function AnalyzeClient() {
   }, [url, router]);
 
   const errorMessage = errorClass ? (ERROR_MESSAGES[errorClass] ?? ERROR_MESSAGES.internal_error) : null;
+  const visibleEvents = events.filter((e) => e.type !== "done" && e.type !== "error");
 
   return (
-    <main className="min-h-screen bg-zinc-50 py-10 px-4">
-      <div className="max-w-lg mx-auto space-y-6">
+    <main className="min-h-screen bg-cream">
+      {/* Nav */}
+      <nav className="border-b-2 border-navy bg-cream px-6 py-4 flex items-center gap-3">
+        <div className="w-9 h-9 bg-navy flex items-center justify-center">
+          <span className="font-display text-white text-lg leading-none">W</span>
+        </div>
+        <span className="font-display text-xl tracking-wide text-navy">WINDDOWN</span>
+      </nav>
+
+      <div className="max-w-xl mx-auto px-6 py-16 space-y-8">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Analysing your site</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <span className="inline-block bg-brand-yellow border-2 border-navy px-3 py-1 text-xs font-bold uppercase tracking-widest text-navy shadow-brutal-sm mb-4">
+            Analysis In Progress
+          </span>
+          <h1 className="font-display text-4xl sm:text-5xl uppercase text-navy leading-none">
+            Analysing<br />Your Site
+          </h1>
+          <p className="mt-3 text-sm text-navy/60 font-medium">
             We&apos;re reading your company website to pre-fill the dissolution form.
           </p>
         </div>
 
-        {/* Progress event list */}
         {!errorMessage && (
-          <ul className="space-y-2">
-            {events
-              .filter((e) => e.type !== "done" && e.type !== "error")
-              .map((e, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm text-zinc-700">
-                  <span className="text-green-500">✓</span>
-                  {EVENT_LABELS[e.type] ?? e.type}
-                </li>
-              ))}
+          <div className="border-2 border-navy bg-white shadow-brutal p-6 space-y-3">
+            {visibleEvents.map((e, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm font-medium text-navy">
+                <div className="w-5 h-5 bg-navy flex items-center justify-center shrink-0">
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                {EVENT_LABELS[e.type] ?? e.type}
+              </div>
+            ))}
             {!done && !errorMessage && (
-              <li className="flex items-center gap-2 text-sm text-zinc-400">
-                <span className="animate-spin">⟳</span>
+              <div className="flex items-center gap-3 text-sm font-medium text-navy/40">
+                <div className="w-5 h-5 border-2 border-navy/30 flex items-center justify-center shrink-0 animate-pulse">
+                  <div className="w-2 h-2 bg-navy/30" />
+                </div>
                 Working…
-              </li>
+              </div>
             )}
-          </ul>
+          </div>
         )}
 
-        {/* Error state */}
         {errorMessage && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3">
-            <p className="text-sm font-medium text-red-800">{errorMessage}</p>
-            <Button
-              variant="outline"
-              onClick={() => router.push("/review?manual=true")}
-              className="w-full"
-            >
-              Enter details manually
+          <div className="border-2 border-brand-red bg-white shadow-[4px_4px_0px_0px_#DC2626] p-6 space-y-4">
+            <span className="inline-block bg-brand-red border-2 border-navy px-3 py-1 text-xs font-bold uppercase tracking-widest text-white">
+              Error
+            </span>
+            <p className="text-sm font-medium text-navy leading-relaxed">{errorMessage}</p>
+            <Button variant="outline" onClick={() => router.push("/review?manual=true")} className="w-full">
+              Enter Details Manually →
             </Button>
           </div>
         )}

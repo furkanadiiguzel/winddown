@@ -7,11 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-/**
- * T053 — Client-side interactive portion of the landing page.
- * URL input, authorization checkbox, submit → /analyze?url=…
- * "Skip" link → /review?manual=true (T054 user-initiated manual entry).
- */
 export function LandingClient() {
   const router = useRouter();
   const [url, setUrl] = useState("");
@@ -22,7 +17,6 @@ export function LandingClient() {
     e.preventDefault();
     setUrlError(null);
 
-    // Client-side URL validation
     let parsed: URL;
     try {
       parsed = new URL(url.trim());
@@ -39,9 +33,11 @@ export function LandingClient() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="border-2 border-navy bg-white shadow-brutal p-6 space-y-5">
       <div className="space-y-2">
-        <Label htmlFor="company-url">Company website URL</Label>
+        <Label htmlFor="company-url" className="text-xs font-bold uppercase tracking-widest text-navy">
+          Company Website URL
+        </Label>
         <Input
           id="company-url"
           type="url"
@@ -51,7 +47,11 @@ export function LandingClient() {
           autoComplete="url"
           required
         />
-        {urlError && <p className="text-xs text-red-600" role="alert">{urlError}</p>}
+        {urlError && (
+          <p className="text-xs font-bold text-brand-red uppercase tracking-wide" role="alert">
+            {urlError}
+          </p>
+        )}
       </div>
 
       <div className="flex items-start gap-3">
@@ -60,26 +60,32 @@ export function LandingClient() {
           checked={authorized}
           onCheckedChange={(v) => setAuthorized(v === true)}
           aria-required="true"
+          className="mt-0.5"
         />
-        <Label htmlFor="authorization" className="text-sm text-zinc-700 cursor-pointer leading-snug">
-          I am authorized to dissolve this entity and I understand this tool prepares
+        <Label htmlFor="authorization" className="text-sm text-navy/70 cursor-pointer leading-snug">
+          I am authorized to dissolve this entity and understand this tool prepares
           documents for submission — it does not file them or provide legal advice.
         </Label>
       </div>
 
       <Button type="submit" disabled={!authorized} className="w-full">
-        Analyse my company site
+        Analyse My Company Site →
       </Button>
 
-      <p className="text-center text-sm text-zinc-500">
-        <button
-          type="button"
-          onClick={() => router.push("/review?manual=true")}
-          className="underline hover:text-zinc-700"
-        >
-          Skip — I&apos;ll enter details manually
-        </button>
-      </p>
+      <div className="relative flex items-center gap-3">
+        <div className="flex-1 h-px bg-navy/20" />
+        <span className="text-xs font-bold uppercase tracking-widest text-navy/40">or</span>
+        <div className="flex-1 h-px bg-navy/20" />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => router.push("/review?manual=true")}
+        className="w-full"
+      >
+        Enter Details Manually →
+      </Button>
     </form>
   );
 }

@@ -4,6 +4,21 @@
 
 @layer base {
   :root {
-    --radius: 0.5rem;
+    --radius: 0rem;
+    --bg-cream: #F5EFE0;
+    --navy: #0D1117;
+    --yellow: #F5C518;
+    --brand-blue: #2563EB;
+    --brand-red: #DC2626;
+  }
+
+  body {
+    background-color: var(--bg-cream);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    color: var(--navy);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display), system-ui, sans-serif;
   }
 }
