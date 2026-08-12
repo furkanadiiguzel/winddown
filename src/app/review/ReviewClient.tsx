@@ -214,6 +214,16 @@ export default function ReviewClient() {
     }
   };
 
+  // Per-field validators
+  const fieldValidators: Record<string, (v: string) => string | null> = {
+    contactEmail: (v) => {
+      if (!v) return null;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+        ? null
+        : "Enter a valid email — e.g. info@company.com";
+    },
+  };
+
   // Field card helpers
   const renderExtractedField = (
     fieldId: string,
@@ -234,6 +244,7 @@ export default function ReviewClient() {
         <FieldCard
           field={field}
           label={label}
+          validate={fieldValidators[fieldId]}
           onEdit={(value) => {
             store.setFieldValue(fieldId, value);
             // Also update store's extractedFields

@@ -13,7 +13,8 @@ interface FieldCardProps {
   field: ExtractedField | AbsentField;
   label: string;
   onEdit: (value: string) => void;
-  /** Optional: show "This is correct" affordance for low-confidence gate */
+  /** Optional per-field validator. Return error string or null. */
+  validate?: (value: string) => string | null;
   showConfirmAffordance?: boolean;
   onConfirm?: () => void;
 }
@@ -22,14 +23,11 @@ function isExtractedField(field: ExtractedField | AbsentField): field is Extract
   return "value" in field;
 }
 
-/**
- * FieldCard — displays a form field with its extracted value, source badge,
- * confidence indicator, and inline edit capability.
- */
 export function FieldCard({
   field,
   label,
   onEdit,
+  validate,
   showConfirmAffordance,
   onConfirm,
 }: FieldCardProps) {
@@ -38,24 +36,42 @@ export function FieldCard({
 
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(extracted ? field.value : "");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [savedError, setSavedError] = useState<string | null>(() =>
+    validate && extracted && field.value ? validate(field.value) : null
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startEdit = () => {
     setEditValue(extracted ? field.value : "");
+    setEditError(null);
     setEditing(true);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  const handleChange = (v: string) => {
+    setEditValue(v);
+    if (validate && v) setEditError(validate(v));
+    else setEditError(null);
+  };
+
   const saveEdit = () => {
-    if (editValue.trim() !== (extracted ? field.value : "")) {
-      onEdit(editValue.trim());
+    const trimmed = editValue.trim();
+    if (validate && trimmed) {
+      const err = validate(trimmed);
+      if (err) { setEditError(err); return; } // keep editing, don't save invalid value
     }
+    if (trimmed !== (extracted ? field.value : "")) {
+      onEdit(trimmed);
+    }
+    setSavedError(validate && trimmed ? validate(trimmed) : null);
+    setEditError(null);
     setEditing(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") saveEdit();
-    if (e.key === "Escape") setEditing(false);
+    if (e.key === "Escape") { setEditing(false); setEditError(null); }
   };
 
   const sourceLabel =
@@ -63,20 +79,20 @@ export function FieldCard({
       ? `from ${new URL(field.sourceUrl).hostname}`
       : null;
 
+  const cardBorder = isLowConfidence
+    ? "border-amber-400 ring-1 ring-amber-300"
+    : savedError
+    ? "border-brand-red shadow-[2px_2px_0px_0px_#DC2626]"
+    : undefined;
+
   return (
-    <Card
-      className={
-        isLowConfidence
-          ? "border-amber-400 ring-1 ring-amber-300"
-          : "border-zinc-200"
-      }
-    >
+    <Card className={cardBorder}>
       <CardContent className="p-4 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-zinc-700">{label}</span>
+          <span className="text-sm font-bold uppercase tracking-wide text-navy/70">{label}</span>
           <div className="flex items-center gap-1.5">
             {isLowConfidence && (
-              <span className="flex items-center gap-1 text-xs text-amber-700">
+              <span className="flex items-center gap-1 text-xs font-bold text-amber-700 uppercase tracking-wide">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Low confidence
               </span>
@@ -109,35 +125,47 @@ export function FieldCard({
         </div>
 
         {editing ? (
-          <div className="flex items-center gap-2">
-            <Input
-              ref={inputRef}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={saveEdit}
-              onKeyDown={handleKeyDown}
-              className="h-8 text-sm"
-              aria-label={`Edit value for ${label}`}
-            />
-            <Button
-              size="sm"
-              onClick={saveEdit}
-              className="h-8 px-2"
-              aria-label="Save"
-            >
-              <Check className="h-3.5 w-3.5" />
-            </Button>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Input
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => handleChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className={`h-9 text-sm ${editError ? "border-brand-red focus-visible:ring-brand-red" : ""}`}
+                aria-label={`Edit value for ${label}`}
+                aria-invalid={!!editError}
+                aria-describedby={editError ? `${label}-error` : undefined}
+              />
+              <Button
+                size="sm"
+                onClick={saveEdit}
+                className="h-9 px-3 shrink-0"
+                aria-label="Save"
+                disabled={!!editError}
+              >
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {editError && (
+              <p id={`${label}-error`} className="text-xs font-bold text-brand-red uppercase tracking-wide flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                {editError}
+              </p>
+            )}
           </div>
         ) : (
-          <p
-            className={
-              extracted && field.value
-                ? "text-sm text-zinc-900"
-                : "text-sm italic text-zinc-400"
-            }
-          >
-            {extracted && field.value ? field.value : "Needs your input"}
-          </p>
+          <div className="space-y-1">
+            <p className={extracted && field.value ? "text-sm text-navy" : "text-sm italic text-navy/30"}>
+              {extracted && field.value ? field.value : "Needs your input"}
+            </p>
+            {savedError && (
+              <p className="text-xs font-bold text-brand-red uppercase tracking-wide flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                {savedError}
+              </p>
+            )}
+          </div>
         )}
 
         {isLowConfidence && showConfirmAffordance && onConfirm && (
