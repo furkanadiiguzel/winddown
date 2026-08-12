@@ -133,8 +133,9 @@ function parseHtml(url: string, html: string, rawBodyLength: number): PageResult
 
 // ── T037: Link discovery ──────────────────────────────────────────────────────
 
-const CANDIDATE_PATTERN = /terms|privacy|legal|about|contact|imprint/i;
-const MAX_CANDIDATE_LINKS = 4;
+const CANDIDATE_PATTERN =
+  /terms|privacy|legal|about|contact|imprint|reach|location|address|office|team|company|who-we-are|get-in-touch|find-us|our-story/i;
+const MAX_CANDIDATE_LINKS = 5;
 
 /**
  * Extracts up to 4 candidate page links from the given HTML string,

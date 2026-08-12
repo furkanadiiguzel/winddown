@@ -104,6 +104,30 @@ export async function scrape(
       homeHtml = `<html><body>${paras}</body></html>`;
       rawPages.push({ url, html: homeHtml });
       jinaOk = true;
+
+      // Also try common contact/about sub-pages via Jina concurrently
+      // (contact info is often only on contact/about pages)
+      const jinaSubPaths = ["/contact", "/about", "/contact-us", "/about-us", "/our-company"];
+      const jinaSubResults = await Promise.allSettled(
+        jinaSubPaths.slice(0, 3).map(async (path) => {
+          const subUrl = new URL(path, url).href;
+          const { text: subText } = await fetchViaJina(subUrl);
+          return { subUrl, subText };
+        })
+      );
+      for (const r of jinaSubResults) {
+        if (r.status === "fulfilled") {
+          const { subUrl, subText } = r.value;
+          emit({ type: "fetching_page", url: subUrl });
+          const subParas = subText
+            .split(/\n+/)
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0)
+            .map((l) => `<p>${l}</p>`)
+            .join("\n");
+          rawPages.push({ url: subUrl, html: `<html><body>${subParas}</body></html>` });
+        }
+      }
     } catch {
       // Jina failed — try Tier 4 (Wayback Machine)
       emit({ type: "tier4_wayback" });
@@ -117,11 +141,9 @@ export async function scrape(
       }
     }
 
-    // Skip sub-page discovery when using Jina/Wayback — prune what we have
-    if (!jinaOk || homeHtml) {
-      const pages = prunePages(rawPages);
-      return { pages, events };
-    }
+    // Jina/Wayback path: prune and return (sub-pages already added above)
+    const pages = prunePages(rawPages);
+    return { pages, events };
   }
 
   // 4. Tier 2 fallback for SPA shells (only when Tier 1 succeeded)

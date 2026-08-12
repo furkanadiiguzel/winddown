@@ -95,6 +95,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
               case "tier2_unavailable":
                 encode({ type: "tier2_fallback", url });
                 break;
+              case "tier3_jina":
+                encode({ type: "tier3_jina" });
+                break;
+              case "tier4_wayback":
+                encode({ type: "tier4_wayback" });
+                break;
               case "ssrf_blocked":
               case "robots_blocked":
                 // Internal guard events — surfaced as part of done/error
