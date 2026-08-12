@@ -154,6 +154,29 @@ export async function scrape(
     }
   } else if (homeSpaCandidate) {
     emit({ type: "tier2_unavailable" });
+
+    // Tier 2 unavailable + SPA shell detected → try Firecrawl for JS rendering
+    emit({ type: "tier3_jina" });
+    try {
+      const { pages: fcPages } = await fetchViaFirecrawl(url);
+      // Replace rawPages with Firecrawl-rendered content
+      rawPages.length = 0;
+      for (const p of fcPages) {
+        rawPages.push({ url: p.url, html: `<html><body>${markdownToHtml(p.markdown)}</body></html>` });
+      }
+      // Firecrawl already fetches homepage + /contact + /about; skip link discovery
+      const pages = prunePages(rawPages);
+      return { pages, events };
+    } catch {
+      // Firecrawl also failed for SPA — try Wayback Machine
+      emit({ type: "tier4_wayback" });
+      try {
+        const { html } = await fetchViaWayback(url);
+        rawPages[rawPages.length - 1] = { url, html };
+      } catch {
+        // Keep whatever Tier 1 got
+      }
+    }
   }
 
   // 5. Link discovery + sub-page fetches
