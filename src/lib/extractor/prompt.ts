@@ -97,7 +97,8 @@ RECOGNITION PATTERNS:
     Cheyenne, Wyoming 82001
   Partial forms are acceptable: "Cheyenne, WY 82001" alone → extract with confidence medium.
 SCANNING TIPS: footers, contact blocks, about pages; also plain lines between a logo and a phone number.
-CRITICAL EXCLUSION: the Wyoming Secretary of State's addresses — "Herschler Building East, Suite 101, 122 W 25th Street, Cheyenne, WY 82002-0020" and "2020 Carey Avenue, Cheyenne" — appear in how-to content on many business-services sites. They are GOVERNMENT addresses. They are never THIS company's address, no matter how prominently they appear. Also exclude retailer/stockist addresses in "where to buy" lists and event-venue addresses.
+FOOTER RULE: An address in the page footer that appears on the same block as the company phone and/or copyright line IS this company's own office address. Extract it even if the company also offers address services to clients (e.g., "use our address on public documents"). The address they offer to clients is described in body prose; their own address is in the footer identity block.
+CRITICAL EXCLUSION: ONLY these specific Wyoming Secretary of State addresses are government addresses — never THIS company's: "Herschler Building East, Suite 101, 122 W 25th Street, Cheyenne, WY 82002-0020", "122 W 25th Street, Cheyenne", and "2020 Carey Avenue, Cheyenne". Any OTHER Cheyenne address (e.g., "1621 Central Avenue, Cheyenne, WY 82001") is NOT a government address. Also exclude retailer/stockist addresses in "where to buy" lists and event-venue addresses.
 </field_specs>
 
 <conflict_resolution>
