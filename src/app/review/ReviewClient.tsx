@@ -463,7 +463,8 @@ export default function ReviewClient() {
                   <Label htmlFor="signingDate">Signing date *</Label>
                   <Input
                     id="signingDate"
-                    type="date"
+                    type="text"
+                    placeholder="MM/DD/YYYY"
                     value={store.signingDate}
                     onChange={(e) => store.setFieldValue("signingDate", e.target.value)}
                   />
@@ -494,7 +495,8 @@ export default function ReviewClient() {
                       <Label htmlFor="dateOfIncorporation" className="text-xs font-bold uppercase tracking-widest">Date of Incorporation</Label>
                       <Input
                         id="dateOfIncorporation"
-                        type="date"
+                        type="text"
+                        placeholder="MM/DD/YYYY"
                         value={store.dateOfIncorporation}
                         onChange={(e) => useFormState.setState({ dateOfIncorporation: e.target.value, certificationAffirmed: false, userConfirmedReview: false })}
                       />
@@ -566,7 +568,8 @@ export default function ReviewClient() {
                     </Label>
                     <Input
                       id="dateAuthorizationGranted"
-                      type="date"
+                      type="text"
+                      placeholder="MM/DD/YYYY"
                       value={store.dateAuthorizationGranted}
                       onChange={(e) => useFormState.setState({ dateAuthorizationGranted: e.target.value, certificationAffirmed: false, userConfirmedReview: false })}
                     />
