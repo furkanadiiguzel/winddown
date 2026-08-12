@@ -6,7 +6,7 @@ import { useFormState } from "@/lib/form-state";
 import { STUB_EXTRACTION_RESULT } from "@/lib/stubs/extraction-result";
 import { FieldCard } from "@/components/FieldCard";
 import { CertificationStep } from "@/components/CertificationStep";
-import { PdfPreview } from "@/components/PdfPreview";
+import { PdfPreviewModal } from "@/components/PdfPreviewModal";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -158,6 +158,9 @@ export default function ReviewClient() {
   const handleCertificationContinue = () => {
     setCurrentSection("preview");
   };
+
+  // --- PDF preview modal ---
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   // --- Final download (T031) ---
   const [downloading, setDownloading] = useState(false);
@@ -465,68 +468,76 @@ export default function ReviewClient() {
           </section>
         )}
 
-        {/* ── Section 4: Full-screen PDF Preview + Download ── */}
+        {/* ── Section 4: Preview & Download ── */}
         {currentSection === "preview" && (
-          <div className="fixed inset-0 z-50 flex flex-col bg-zinc-100" role="dialog" aria-labelledby="preview-heading">
-            {/* Top bar */}
-            <div className="flex items-center justify-between bg-white border-b border-zinc-200 px-4 py-3 shrink-0 shadow-sm">
-              <div className="flex items-center gap-3 min-w-0">
-                <button
-                  onClick={() => setCurrentSection("certification")}
-                  className="shrink-0 text-sm text-zinc-500 hover:text-zinc-900 transition-colors flex items-center gap-1"
-                  aria-label="Back to certification"
-                >
-                  ← Back
-                </button>
-                <span className="text-zinc-200 select-none">|</span>
-                <h2 id="preview-heading" className="text-sm font-semibold text-zinc-900 truncate">
-                  {companyLegalName || "Articles of Dissolution"} — Preview
-                </h2>
-              </div>
-              <span className="shrink-0 text-xs text-zinc-400 hidden sm:block">
-                Review carefully before downloading
-              </span>
-            </div>
-
-            {/* PDF iframe — fills remaining space */}
-            <div className="flex-1 overflow-hidden">
-              <PdfPreview intakeState={previewIntakeState} fullHeight />
-            </div>
-
-            {/* Bottom action bar */}
-            <div className="bg-white border-t border-zinc-200 px-4 py-4 shrink-0 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-              <div className="max-w-2xl mx-auto space-y-3">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="userConfirmedReview"
-                    checked={store.userConfirmedReview}
-                    onCheckedChange={(checked) =>
-                      useFormState.setState({ userConfirmedReview: checked === true })
-                    }
-                    aria-label="I have reviewed all information and it is accurate"
-                  />
-                  <Label htmlFor="userConfirmedReview" className="text-sm text-zinc-700 cursor-pointer leading-snug">
-                    I have reviewed all information in this form and confirm it is accurate.
-                    I understand this document will be submitted to the Wyoming Secretary of State.
-                  </Label>
-                </div>
-
-                {downloadError && (
-                  <p className="text-sm text-red-600">{downloadError}</p>
-                )}
+          <section aria-labelledby="preview-heading">
+            <Card>
+              <CardHeader>
+                <CardTitle id="preview-heading">Step 4 — Preview &amp; Download</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-zinc-600">
+                  Open the PDF preview to review the filled form before downloading.
+                </p>
 
                 <Button
-                  onClick={handleDownload}
-                  disabled={!store.userConfirmedReview || downloading}
-                  className="w-full"
+                  variant="outline"
+                  onClick={() => setShowPdfModal(true)}
+                  className="w-full flex items-center justify-center gap-2"
                 >
-                  {downloading ? "Generating…" : "Download Articles of Dissolution"}
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Open PDF Preview
                 </Button>
 
+                <div className="rounded-md border border-zinc-200 p-4 space-y-3">
+                  <p className="text-sm font-medium text-zinc-700">Final confirmation</p>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="userConfirmedReview"
+                      checked={store.userConfirmedReview}
+                      onCheckedChange={(checked) =>
+                        useFormState.setState({ userConfirmedReview: checked === true })
+                      }
+                      aria-label="I have reviewed all information and it is accurate"
+                    />
+                    <Label htmlFor="userConfirmedReview" className="text-sm text-zinc-700 cursor-pointer leading-snug">
+                      I have reviewed all information in this form and confirm it is accurate.
+                      I understand this document will be submitted to the Wyoming Secretary of State.
+                    </Label>
+                  </div>
+
+                  {downloadError && (
+                    <p className="text-sm text-red-600">{downloadError}</p>
+                  )}
+
+                  <Button
+                    onClick={handleDownload}
+                    disabled={!store.userConfirmedReview || downloading}
+                    className="w-full"
+                  >
+                    {downloading ? "Generating…" : "Download Articles of Dissolution"}
+                  </Button>
+                </div>
+
                 <LegalDisclaimer />
-              </div>
-            </div>
-          </div>
+              </CardContent>
+            </Card>
+
+            {showPdfModal && (
+              <PdfPreviewModal
+                intakeState={previewIntakeState}
+                companyName={companyLegalName}
+                userConfirmedReview={store.userConfirmedReview}
+                onConfirmChange={(v) => useFormState.setState({ userConfirmedReview: v })}
+                onDownload={handleDownload}
+                downloading={downloading}
+                downloadError={downloadError}
+                onClose={() => setShowPdfModal(false)}
+              />
+            )}
+          </section>
         )}
       </div>
     </main>
