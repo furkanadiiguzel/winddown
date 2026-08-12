@@ -51,8 +51,7 @@ export function FieldCard({
 
   const handleChange = (v: string) => {
     setEditValue(v);
-    if (validate && v) setEditError(validate(v));
-    else setEditError(null);
+    setEditError(null); // clear error while typing; validate only on save
   };
 
   const saveEdit = () => {
@@ -142,7 +141,6 @@ export function FieldCard({
                 onClick={saveEdit}
                 className="h-9 px-3 shrink-0"
                 aria-label="Save"
-                disabled={!!editError}
               >
                 <Check className="h-3.5 w-3.5" />
               </Button>
