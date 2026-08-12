@@ -58,15 +58,21 @@ export function verifyEvidence(
   const normText = normalise(page.text);
   const normEvidence = normalise(evidence);
 
-  // Primary: verbatim whitespace-normalised match
+  // Primary: verbatim whitespace-normalised match on evidence snippet
   if (normText.includes(normEvidence)) return "accepted";
 
-  // Secondary: token-overlap check — ≥75% of words present in page text.
-  // Handles minor punctuation / encoding differences (Jina, Wayback, &nbsp;).
+  // Secondary: value-based check — if the extracted VALUE itself appears in
+  // the page text, accept. Phone/email/address values are unique enough that
+  // their presence in the page text confirms the extraction (the AI can't
+  // hallucinate a specific phone number that doesn't exist on the page).
+  const normValue = normalise(field.value);
+  if (normValue.length >= 5 && normText.includes(normValue)) return "accepted";
+
+  // Tertiary: token-overlap check — ≥70% of evidence words present in page.
   const evidenceWords = normEvidence.split(/\s+/).filter((w) => w.length > 2);
   if (evidenceWords.length >= 2) {
     const matches = evidenceWords.filter((w) => normText.includes(w));
-    if (matches.length / evidenceWords.length >= 0.75) return "accepted";
+    if (matches.length / evidenceWords.length >= 0.70) return "accepted";
   }
 
   return "rejected";

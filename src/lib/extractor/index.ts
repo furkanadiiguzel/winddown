@@ -42,6 +42,7 @@ export async function extract(scrapeResult: ScrapeResult): Promise<ExtractionRes
       const message = await client.messages.create({
         model: MODEL,
         max_tokens: 2048,
+        temperature: 0,
         system: SYSTEM_PROMPT,
         tools: [REPORT_EXTRACTED_FIELDS_TOOL],
         tool_choice: { type: "tool", name: "report_extracted_fields" },
