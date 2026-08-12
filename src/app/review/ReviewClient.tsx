@@ -238,6 +238,13 @@ export default function ReviewClient() {
         ? null
         : "Enter a valid email — e.g. info@company.com";
     },
+    contactPhone: (v) => {
+      if (!v) return null;
+      // US format: accepts (307) 555-1234 / 307-555-1234 / 3075551234 / +1 307 555 1234
+      return /^\+?1?[\s.\-]?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}$/.test(v.trim())
+        ? null
+        : "Enter a US phone number — e.g. (307) 555-1234";
+    },
   };
 
   // Field card helpers
