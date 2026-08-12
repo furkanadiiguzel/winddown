@@ -1,18 +1,8 @@
 import * as cheerio from "cheerio";
 
-const ENTITY_SUFFIX = /\b(?:LLC|L\.L\.C\.|Inc\.?|Corp\.?|Ltd\.?|Company)(?=[\s,.;:)!]|$)/i;
-const CONTACT_PATTERN = /[\w.+-]+@[\w-]+\.[a-z]{2,}|\+?[\d][\d\s\-().]{6,}\d/;
-const GOVERNING_LAW = /governing\s+law|jurisdiction|formed\s+in|organized\s+under/i;
-const ADDRESS_PATTERN =
-  /\b\d{1,5}\s+[A-Za-z][A-Za-z0-9\s.,#-]{3,}\s+(?:street|st|avenue|ave|road|rd|blvd|boulevard|drive|dr|lane|ln|way|place|pl|suite|ste|floor|fl|hwy|highway|pkwy)\.?\b|\bpo\s*box\s+\d+/i;
-const STATE_ZIP_PATTERN = /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/;
-const COPYRIGHT_PATTERN = /©|\bCopyright\b|\ball rights reserved\b/i;
-
-const TOTAL_CHAR_CAP = 14_000;
-
-// Short-element threshold: elements under this length are included without
-// pattern filtering — business sites pack contact info into tight blocks.
-const SHORT_ELEMENT_THRESHOLD = 350;
+// Total character cap sent to the AI.
+// Claude Sonnet handles 200k tokens; 20k chars (~5k tokens) is generous but safe.
+const TOTAL_CHAR_CAP = 20_000;
 
 export interface PageBlock {
   url: string;
@@ -20,20 +10,27 @@ export interface PageBlock {
   text: string;
 }
 
-function qualifiesLong(t: string): boolean {
-  return (
-    ENTITY_SUFFIX.test(t) ||
-    CONTACT_PATTERN.test(t) ||
-    GOVERNING_LAW.test(t) ||
-    ADDRESS_PATTERN.test(t) ||
-    STATE_ZIP_PATTERN.test(t) ||
-    COPYRIGHT_PATTERN.test(t)
-  );
-}
-
+/**
+ * Extracts ALL visible text from a page, removing only noise (scripts, styles,
+ * navigation, cookie banners, ads). This approach is intentionally broad:
+ * filtering by element type or content pattern was causing inconsistent
+ * extractions because contact info appears in too many structural variations.
+ * The AI is responsible for identifying relevant fields from the full text.
+ */
 export function prunePage(url: string, html: string): PageBlock {
   const $ = cheerio.load(html);
-  $("script, style, noscript, iframe, svg, nav, [role='navigation']").remove();
+
+  // Remove non-content elements
+  $(
+    "script, style, noscript, iframe, svg, " +
+    "nav, [role='navigation'], " +
+    "header nav, .nav, .navbar, .menu, #menu, " +
+    "[class*='cookie'], [class*='gdpr'], [class*='banner'], [id*='cookie'], " +
+    "[class*='popup'], [class*='modal'], " +
+    "[class*='breadcrumb'], [class*='pagination'], " +
+    "[class*='social-links'], [class*='social-icons'], " +
+    "[aria-hidden='true']"
+  ).remove();
 
   const title = $("title").first().text().trim();
   const parts: string[] = [];
@@ -41,79 +38,52 @@ export function prunePage(url: string, html: string): PageBlock {
 
   function add(raw: string) {
     const t = raw.replace(/\s+/g, " ").trim();
-    if (t.length > 2 && !seen.has(t)) {
+    if (t.length > 1 && !seen.has(t)) {
       seen.add(t);
       parts.push(t);
     }
   }
 
-  // 1. Always: title + headings + meta description
+  // 1. Always: title + meta description + og:site_name
   if (title) add(title);
-  $("h1, h2, h3, h4").each((_, el) => add($(el).text()));
-  const metaDesc = $('meta[name="description"]').attr("content") ?? "";
-  if (metaDesc) add(metaDesc);
-  const ogName = $('meta[property="og:site_name"]').attr("content") ?? "";
-  if (ogName) add(ogName);
+  add($('meta[name="description"]').attr("content") ?? "");
+  add($('meta[property="og:site_name"]').attr("content") ?? "");
 
-  // 2. Always: footer + contentinfo (copyright line, registered name)
-  const footerSels = [
-    "footer",
-    '[role="contentinfo"]',
-    '[class*="footer"]',
-    '[id*="footer"]',
-    '[class*="bottom-bar"]',
-    '[class*="site-bottom"]',
-  ];
-  for (const sel of footerSels) {
-    $(sel).each((_, el) => add($(el).text()));
+  // 2. Walk every visible element and collect text from leaf nodes.
+  //    We walk depth-first so parent containers don't duplicate child text.
+  //    An element is "leaf-like" if it has no block-level descendants.
+  const BLOCK_TAGS = new Set([
+    "div", "section", "article", "aside", "main", "header", "footer",
+    "p", "ul", "ol", "li", "table", "tr", "td", "th", "blockquote",
+    "h1", "h2", "h3", "h4", "h5", "h6", "address", "form", "fieldset",
+  ]);
+
+  // Collect leaf element text (no block children = leaf)
+  $("body *").each((_, el) => {
+    if (el.type !== "tag") return;
+    const $el = $(el);
+    const tag = el.name.toLowerCase();
+
+    // Skip if has block descendants (we'll pick up children individually)
+    const hasBlockChild = $el
+      .children()
+      .toArray()
+      .some((c) => c.type === "tag" && BLOCK_TAGS.has(c.name.toLowerCase()));
+
+    if (hasBlockChild && !["footer", "address"].includes(tag)) return;
+
+    const t = $el.text().replace(/\s+/g, " ").trim();
+    if (t.length > 1) add(t);
+  });
+
+  // 3. Fallback: if we got very little, use full body text
+  const joined = parts.join("\n");
+  if (joined.length < 200) {
+    const bodyText = $("body").text().replace(/\s+/g, " ").trim();
+    return { url, title, text: bodyText.slice(0, TOTAL_CHAR_CAP) };
   }
 
-  // 3. Always: any element that semantically indicates contact/address
-  const contactSels = [
-    "address",
-    '[class*="address"]', '[id*="address"]',
-    '[class*="contact"]', '[id*="contact"]',
-    '[class*="location"]', '[id*="location"]',
-    '[class*="phone"]', '[id*="phone"]',
-    '[class*="email"]', '[id*="email"]',
-    '[class*="reach"]', '[id*="reach"]',
-    '[class*="office"]', '[id*="office"]',
-    '[class*="headquarter"]', '[id*="headquarter"]',
-    '[class*="company-info"]', '[id*="company-info"]',
-    '[class*="get-in-touch"]',
-    '[class*="about"]', '[id*="about-info"]',
-    '[class*="sidebar"]', '[id*="sidebar"]',
-  ];
-  for (const sel of contactSels) {
-    $(sel).each((_, el) => add($(el).text()));
-  }
-
-  // 4. Sweep all leaf text nodes:
-  //    - under SHORT_ELEMENT_THRESHOLD chars → include unconditionally
-  //    - 350–2000 chars → include only if matches qualifying pattern
-  //    - over 2000 chars → skip (prose / blog content)
-  const sweepSels = ["p", "li", "td", "address", "span", "div", "section", "article"];
-  for (const sel of sweepSels) {
-    $(sel).each((_, el) => {
-      const $el = $(el);
-      // Skip containers with significant block descendants (we want leaf-ish nodes)
-      const blockDescendants = $el.find("p, article, section, blockquote, table").length;
-      if (blockDescendants > 3) return;
-
-      const t = $el.text().replace(/\s+/g, " ").trim();
-      if (t.length < 3) return;
-
-      if (t.length <= SHORT_ELEMENT_THRESHOLD) {
-        add(t);
-      } else if (t.length <= 2_000) {
-        if (qualifiesLong(t)) add(t);
-      }
-      // > 2000: skip
-    });
-  }
-
-  const text = parts.join("\n").trim();
-  return { url, title, text };
+  return { url, title, text: joined };
 }
 
 export function prunePages(pages: Array<{ url: string; html: string }>): PageBlock[] {
