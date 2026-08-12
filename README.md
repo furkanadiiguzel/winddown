@@ -29,22 +29,31 @@ URL submitted
   │
   ├─ Tier 1 scraper (fetch + cheerio)
   │     ├─ Homepage fetch (10 s timeout, 2 MB cap, max 5 redirects)
+  │     ├─ Raw HTML preserved and passed to content pruner
   │     ├─ Link discovery (same domain, /terms|privacy|legal|about|contact|imprint/, max 4)
   │     └─ Sub-page fetches (same guards applied per hop)
   │
   ├─ Tier 2 fallback (Playwright headless) — only when body < 500 chars (SPA detected)
   │
-  ├─ Content pruner — keeps title + headings + footer + qualifying <p> elements
-  │     (entity-suffix regex, contact patterns, governing-law sentences)
-  │     8 000-char cap across all pages
+  ├─ Tier 3 fallback (Jina AI Reader — r.jina.ai) — when Tier 1 is blocked by the site
+  │     └─ Returns clean readable text; split into paragraph elements for pruner
+  │
+  ├─ Tier 4 fallback (Wayback Machine — archive.org) — when Jina also fails
+  │     └─ Two-step: snapshot lookup → fetch archived HTML
+  │
+  ├─ Content pruner — keeps title + headings + footer + qualifying elements
+  │     ├─ Element types: p, li, address, span, div (leaf), td
+  │     ├─ Contact/address containers always included (class/id matching)
+  │     ├─ Qualifying patterns: entity suffix, email/phone, address regex, state+zip
+  │     └─ 12 000-char cap across all pages
   │
   └─ Claude claude-sonnet-4-6 — single batched call
         ├─ Each page block wrapped as <page url="...">…</page>
         ├─ report_extracted_fields tool (structured output, 4 fields)
         ├─ certificationAffirmed structurally ABSENT from tool schema
         ├─ Evidence verifier — each field's evidence snippet must appear
-        │   verbatim (whitespace-normalised) in the fetched page text;
-        │   fabricated snippets → field marked absent
+        │   verbatim (or 80% token-overlap for Jina/Wayback sources) in
+        │   the fetched page text; fabricated snippets → field marked absent
         ├─ Up to 3 retries on 429 / 5xx with exponential backoff
         └─ manual-fallback on auth error or exhausted retries
 ```
@@ -63,7 +72,7 @@ Prompt-injection text that genuinely appears in the page (e.g. in a blog comment
 
 ### Rate limiting
 
-5 analyses per hour per IP address. The key stored in Redis is `sha256(ip)` — raw IPs are never persisted (FR-021). When Redis is unavailable the system fails open (allows the request) and logs a warning.
+20 analyses per hour per IP address by default (configurable via `RATE_LIMIT_MAX` environment variable). The key stored in Redis is `sha256(ip)` — raw IPs are never persisted (FR-021). When Redis is unavailable the system fails open (allows the request) and logs a warning.
 
 ---
 
@@ -87,7 +96,7 @@ The user explicitly selects the correct form in Step 2. The AI never chooses the
 | Hosting | Vercel (Fluid Compute) |
 | UI | Tailwind CSS, shadcn/ui |
 | State | Zustand v5 with sessionStorage persistence |
-| Scraping | fetch + cheerio (Tier 1); Playwright + @sparticuz/chromium (Tier 2) |
+| Scraping | fetch + cheerio (Tier 1); Playwright + @sparticuz/chromium (Tier 2); Jina AI Reader (Tier 3); Wayback Machine (Tier 4) |
 | AI | Anthropic Claude claude-sonnet-4-6 via `@anthropic-ai/sdk` |
 | PDF | pdf-lib (fill) + pdf-parse (test extraction) |
 | Rate limiting | Upstash Redis, @upstash/ratelimit (sliding window) |
@@ -116,10 +125,12 @@ src/
     scraper/
       ssrf-guard.ts           # DNS resolution + CIDR block list
       robots.ts               # robots.txt fetcher/parser
-      tier1.ts                # fetch + cheerio + link discovery
-      tier2.ts                # Playwright headless fallback
-      pruner.ts               # Content pruning (8k cap)
-      index.ts                # Scraper orchestrator
+      tier1.ts                # fetch + cheerio + link discovery (returns rawHtml)
+      tier2.ts                # Playwright headless fallback (SPA detection)
+      tier3-jina.ts           # Jina AI Reader fallback (r.jina.ai)
+      tier4-wayback.ts        # Wayback Machine fallback (archive.org)
+      pruner.ts               # Content pruning (12k cap, multi-element, address patterns)
+      index.ts                # Scraper orchestrator (4-tier pipeline)
     extractor/
       tool-schema.ts          # report_extracted_fields JSON schema
       prompt.ts               # System prompt + CONTEXT-CREDIBILITY RULE
@@ -139,10 +150,11 @@ src/
   config/
     wyoming.ts                # Single source of truth for procedural facts
   components/
-    FieldCard.tsx             # Extracted field display + inline edit
+    FieldCard.tsx             # Extracted field display + inline edit + field-level validation
     EvidencePopover.tsx       # Source snippet on hover/tap
     CertificationStep.tsx     # W.S. 17-29-701 certification (unchecked by default)
-    PdfPreview.tsx            # Embedded PDF preview iframe
+    PdfPreviewModal.tsx       # Full-screen PDF preview modal (portal to document.body)
+    SignaturePadModal.tsx     # Canvas signature drawing pad (mouse + touch)
     LandingClient.tsx         # URL input + auth checkbox
     StartOverLink.tsx         # Clears session and returns to /
   mcp/
@@ -190,6 +202,7 @@ UPSTASH_REDIS_REST_URL=https://...    # from console.upstash.com → REST API
 UPSTASH_REDIS_REST_TOKEN=...          # same dashboard
 ENABLE_TIER2_RENDER=false             # true to enable Playwright headless (slower)
 NEXT_PUBLIC_STUB=false                # true for hardcoded stub data (no API calls)
+RATE_LIMIT_MAX=20                     # analyses per hour per IP (default: 20)
 ```
 
 **These values must never be committed.** `.env.local` is in `.gitignore`.
