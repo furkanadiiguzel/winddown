@@ -66,6 +66,10 @@ export async function extract(scrapeResult: ScrapeResult): Promise<ExtractionRes
 
       const totalChars = pageBlocks.reduce((a, p) => a + p.text.length, 0);
       console.info(`[extractor] pages=${pageBlocks.length} total_chars=${totalChars} ai_fields_reported=${Object.keys(rawFields).length}`);
+      // TEMP DEBUG: log page previews to verify pruned content
+      for (const p of pageBlocks) {
+        console.info(`[extractor:page] url=${p.url} len=${p.text.length} preview=${p.text.slice(0, 400).replace(/\n/g, "↵")}`);
+      }
 
       for (const fieldId of EXTRACTABLE_FIELD_IDS) {
         const rawField = rawFields[fieldId];
