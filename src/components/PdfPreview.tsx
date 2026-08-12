@@ -5,15 +5,12 @@ import type { IntakeState } from "@/schemas/intake";
 
 interface PdfPreviewProps {
   intakeState: IntakeState;
+  fullHeight?: boolean;
 }
 
 type PreviewStatus = "loading" | "ready" | "error";
 
-/**
- * PdfPreview — fetches a PREVIEW watermarked PDF from /api/generate-pdf
- * and embeds it in an iframe using a blob URL.
- */
-export function PdfPreview({ intakeState }: PdfPreviewProps) {
+export function PdfPreview({ intakeState, fullHeight }: PdfPreviewProps) {
   const [status, setStatus] = useState<PreviewStatus>("loading");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
@@ -56,9 +53,13 @@ export function PdfPreview({ intakeState }: PdfPreviewProps) {
     };
   }, [intakeState]);
 
+  const containerClass = fullHeight
+    ? "flex items-center justify-center w-full h-full bg-zinc-100"
+    : "flex items-center justify-center h-48 rounded-md border border-zinc-200 bg-zinc-50";
+
   if (status === "loading") {
     return (
-      <div className="flex items-center justify-center h-48 rounded-md border border-zinc-200 bg-zinc-50">
+      <div className={containerClass}>
         <p className="text-sm text-zinc-500 animate-pulse">Generating preview…</p>
       </div>
     );
@@ -66,10 +67,8 @@ export function PdfPreview({ intakeState }: PdfPreviewProps) {
 
   if (status === "error" || !blobUrl) {
     return (
-      <div className="flex items-center justify-center h-48 rounded-md border border-amber-200 bg-amber-50">
-        <p className="text-sm text-amber-700">
-          Preview unavailable — you can still download.
-        </p>
+      <div className={fullHeight ? "flex items-center justify-center w-full h-full bg-amber-50" : "flex items-center justify-center h-48 rounded-md border border-amber-200 bg-amber-50"}>
+        <p className="text-sm text-amber-700">Preview unavailable — you can still download.</p>
       </div>
     );
   }
@@ -77,7 +76,7 @@ export function PdfPreview({ intakeState }: PdfPreviewProps) {
   return (
     <iframe
       src={blobUrl}
-      className="w-full h-[600px] rounded-md border border-zinc-200"
+      className={fullHeight ? "w-full h-full border-0" : "w-full h-[600px] rounded-md border border-zinc-200"}
       title="PDF Preview"
     />
   );
