@@ -33,7 +33,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   ai_server_error: "The AI service encountered an error. Please try again.",
   ai_timeout: "The AI request timed out. Please try again.",
   tier2_unavailable: "Headless rendering is unavailable. You can enter details manually.",
-  rate_limit_exceeded: "You've reached the analysis limit (5/hour). You can continue with manual entry now, or try again later.",
+  rate_limit_exceeded: "You've reached the hourly analysis limit. You can continue with manual entry now, or try again in an hour.",
   internal_error: "An unexpected error occurred. Please try again.",
 };
 

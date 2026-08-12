@@ -18,9 +18,10 @@ function getRatelimiter(): Ratelimit | null {
   if (!url || !token) return null;
 
   const redis = new Redis({ url, token });
+  const max = parseInt(process.env.RATE_LIMIT_MAX ?? "20", 10);
   ratelimiter = new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(5, "1 h"),
+    limiter: Ratelimit.slidingWindow(max, "1 h"),
     prefix: "ratelimit:analyze",
   });
   return ratelimiter;
