@@ -39,13 +39,37 @@ export interface ScrapeOptions {
   onEvent?: (event: ScrapeEvent) => void;
 }
 
-function markdownToHtml(md: string): string {
-  return md
-    .split(/\n+/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-    .map((l) => `<p>${l}</p>`)
+function markdownToText(md: string): string {
+  const cleaned = md
+    // Images: keep alt text, drop URL
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    // Links: keep link text, drop URL
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    // Bare URLs
+    .replace(/https?:\/\/\S+/g, "")
+    // Heading markers
+    .replace(/^#{1,6}\s*/gm, "")
+    // Bold/italic
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    // Horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    // Collapse blank lines
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  // Wrap paragraphs in <p> tags so cheerio can extract clean text
+  const paras = cleaned
+    .split(/\n\n+/)
+    .map((s) => s.trim().replace(/\n/g, " "))
+    .filter((s) => s.length > 0)
+    .map((s) => `<p>${s}</p>`)
     .join("\n");
+  return paras;
+}
+
+function markdownToHtml(md: string): string {
+  return markdownToText(md);
 }
 
 export async function scrape(
