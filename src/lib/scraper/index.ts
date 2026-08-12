@@ -2,13 +2,14 @@ import { checkUrl, SsrfBlockedError } from "./ssrf-guard";
 import { isAllowed } from "./robots";
 import { fetchPage, discoverLinks } from "./tier1";
 import { prunePages, type PageBlock } from "./pruner";
+import { fetchViaJina } from "./tier3-jina";
+import { fetchViaWayback } from "./tier4-wayback";
 
 const USER_AGENT = "WinddownBot/1.0 (+https://winddown.app)";
 const SPA_BODY_THRESHOLD = 500; // chars; below this Tier 2 is attempted
 
 export interface ScrapeResult {
   pages: PageBlock[];
-  /** Names of SSE-style events emitted during scraping (for logging/tests) */
   events: ScrapeEvent[];
   errorClass?: string;
 }
@@ -18,10 +19,11 @@ export type ScrapeEvent =
   | { type: "found_pages"; urls: string[] }
   | { type: "fetching_page"; url: string }
   | { type: "tier2_unavailable" }
+  | { type: "tier3_jina" }
+  | { type: "tier4_wayback" }
   | { type: "robots_blocked"; url: string }
   | { type: "ssrf_blocked"; url: string };
 
-/** Minimal interface for a tier-2 (headless) scraper. */
 export interface ScraperTier {
   fetch(url: string): Promise<{ html: string }>;
 }
@@ -34,19 +36,9 @@ export class Tier2UnavailableError extends Error {
 }
 
 export interface ScrapeOptions {
-  /** Optional callback invoked synchronously as each event fires. Used by
-   *  the SSE route to push events to the client without buffering. */
   onEvent?: (event: ScrapeEvent) => void;
 }
 
-/**
- * Orchestrates the full scraping pipeline for a single URL:
- * SSRF guard → robots.txt → Tier 1 fetch → optional Tier 2 fallback →
- * link discovery → candidate page fetches → content pruning.
- *
- * All errors are captured as errorClass strings; page content is never
- * logged (constitution §FR-021).
- */
 export async function scrape(
   url: string,
   tier2?: ScraperTier,
@@ -60,7 +52,7 @@ export async function scrape(
     options?.onEvent?.(event);
   }
 
-  // 1. SSRF guard on initial URL
+  // 1. SSRF guard
   try {
     await checkUrl(url);
   } catch (err) {
@@ -80,46 +72,67 @@ export async function scrape(
 
   // 3. Tier 1 fetch of homepage
   emit({ type: "fetching_home", url });
-  let homeResult: Awaited<ReturnType<typeof fetchPage>>;
-  let homeHtml: string;
+
+  let homeHtml = "";
+  let homeSpaCandidate = false; // whether body looks thin enough for Tier 2
 
   try {
-    homeResult = await fetchPage(url);
-    // Re-derive HTML from the page result for link discovery
-    // (fetchPage doesn't expose raw HTML; we re-fetch for link discovery cheaply via a second Tier 1 call)
-    // To avoid a second round-trip, we use the bodyText for pruning and fetch raw for links.
-    // For simplicity: store bodyText as synthetic HTML for pruner; real link discovery uses a dedicated re-fetch.
+    const homeResult = await fetchPage(url);
     homeHtml = `<html><head><title>${homeResult.title}</title></head><body>
       ${homeResult.headings.map((h) => `<h2>${h}</h2>`).join("\n")}
       <footer>${homeResult.footerText}</footer>
       <div id="body-text">${homeResult.bodyText}</div>
     </body></html>`;
     rawPages.push({ url, html: homeHtml });
+    homeSpaCandidate = homeResult.bodyText.length < SPA_BODY_THRESHOLD;
   } catch {
-    return { pages: [], events, errorClass: "fetch_error" };
+    // Tier 1 failed — try Tier 3 (Jina AI Reader)
+    emit({ type: "tier3_jina" });
+    let jinaOk = false;
+
+    try {
+      const { text } = await fetchViaJina(url);
+      homeHtml = `<html><body><div id="body-text">${text}</div></body></html>`;
+      rawPages.push({ url, html: homeHtml });
+      jinaOk = true;
+    } catch {
+      // Jina failed — try Tier 4 (Wayback Machine)
+      emit({ type: "tier4_wayback" });
+      try {
+        const { html } = await fetchViaWayback(url);
+        homeHtml = html;
+        rawPages.push({ url, html: homeHtml });
+      } catch {
+        // All tiers exhausted
+        return { pages: [], events, errorClass: "fetch_error" };
+      }
+    }
+
+    // Skip sub-page discovery when using Jina/Wayback — prune what we have
+    if (!jinaOk || homeHtml) {
+      const pages = prunePages(rawPages);
+      return { pages, events };
+    }
   }
 
-  // 4. Tier 2 fallback if body text looks like an SPA shell
-  if (homeResult.bodyText.length < SPA_BODY_THRESHOLD && tier2) {
+  // 4. Tier 2 fallback for SPA shells (only when Tier 1 succeeded)
+  if (homeSpaCandidate && tier2) {
     try {
       const t2Result = await tier2.fetch(url);
       homeHtml = t2Result.html;
       rawPages[rawPages.length - 1] = { url, html: homeHtml };
     } catch (err) {
-      if (err instanceof Tier2UnavailableError) {
-        emit({ type: "tier2_unavailable" });
-      }
-      // Continue with thin Tier 1 result
+      if (err instanceof Tier2UnavailableError) emit({ type: "tier2_unavailable" });
     }
-  } else if (homeResult.bodyText.length < SPA_BODY_THRESHOLD) {
+  } else if (homeSpaCandidate) {
     emit({ type: "tier2_unavailable" });
   }
 
-  // 5. Link discovery on homepage HTML
+  // 5. Link discovery
   const candidateUrls = discoverLinks(url, homeHtml);
   emit({ type: "found_pages", urls: candidateUrls });
 
-  // 6. Fetch candidate pages (up to 4), with SSRF guard on each redirect hop
+  // 6. Fetch candidate sub-pages
   for (const candidateUrl of candidateUrls) {
     emit({ type: "fetching_page", url: candidateUrl });
 
@@ -130,8 +143,8 @@ export async function scrape(
       continue;
     }
 
-    const allowed = await isAllowed(candidateUrl, USER_AGENT);
-    if (!allowed) {
+    const subAllowed = await isAllowed(candidateUrl, USER_AGENT);
+    if (!subAllowed) {
       emit({ type: "robots_blocked", url: candidateUrl });
       continue;
     }
@@ -145,7 +158,7 @@ export async function scrape(
       </body></html>`;
       rawPages.push({ url: candidateUrl, html });
     } catch {
-      // Fetch failure for a candidate page — skip silently
+      // Sub-page failure — skip silently
     }
   }
 
