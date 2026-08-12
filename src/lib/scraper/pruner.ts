@@ -45,6 +45,21 @@ export function prunePage(url: string, html: string): PageBlock {
     } catch { /* skip malformed JSON-LD */ }
   });
 
+  // Extract tel: and mailto: href attributes BEFORE removing any elements
+  // Many sites put phone/email in nav or footer links; .text() misses href values
+  const telNumbers: string[] = [];
+  const mailtoEmails: string[] = [];
+  $('a[href^="tel:"]').each((_, el) => {
+    const raw = ($(el).attr("href") ?? "").replace(/^tel:/, "").trim();
+    // Normalize to readable format; skip shortcodes (< 7 digits)
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length >= 7) telNumbers.push(raw);
+  });
+  $('a[href^="mailto:"]').each((_, el) => {
+    const raw = ($(el).attr("href") ?? "").replace(/^mailto:/, "").split("?")[0].trim();
+    if (raw.includes("@")) mailtoEmails.push(raw);
+  });
+
   // Remove non-content elements
   $(
     "script, style, noscript, iframe, svg, " +
@@ -109,9 +124,12 @@ export function prunePage(url: string, html: string): PageBlock {
   // 3. Fallback: if we got very little, use full body text
   const joined = parts.join("\n");
 
-  // Prepend JSON-LD contact info so AI always sees it first
-  const jsonLdBlock = jsonLdText.length > 0
-    ? `[STRUCTURED CONTACT DATA]\n${jsonLdText.join("\n")}\n[END STRUCTURED DATA]\n\n`
+  // Prepend structured contact info so AI always sees it first
+  const structuredLines: string[] = [...jsonLdText];
+  if (telNumbers.length > 0) structuredLines.push(`Phone: ${[...new Set(telNumbers)].join(", ")}`);
+  if (mailtoEmails.length > 0) structuredLines.push(`Email: ${[...new Set(mailtoEmails)].join(", ")}`);
+  const jsonLdBlock = structuredLines.length > 0
+    ? `[STRUCTURED CONTACT DATA]\n${structuredLines.join("\n")}\n[END STRUCTURED DATA]\n\n`
     : "";
 
   if (joined.length < 200) {
