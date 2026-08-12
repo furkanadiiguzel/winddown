@@ -96,7 +96,7 @@ export async function scrape(
     homeSpaCandidate = homeResult.bodyText.length < SPA_BODY_THRESHOLD;
   } catch {
     // Tier 1 failed — try Tier 3 (Firecrawl)
-    emit({ type: "tier3_jina" }); // reuse event type for UI label
+    emit({ type: "tier3_jina" }); // event type used for SSE/UI
 
     try {
       const { pages: fcPages } = await fetchViaFirecrawl(url);

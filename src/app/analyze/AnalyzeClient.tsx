@@ -17,8 +17,8 @@ const EVENT_LABELS: Record<string, string> = {
   found_pages: "Discovered candidate pages",
   fetching_page: "Fetching sub-page…",
   tier2_fallback: "Site appears JavaScript-rendered — switching to headless mode…",
-  tier3_jina: "Direct fetch blocked — trying Jina AI Reader…",
-  tier4_wayback: "Jina unavailable — trying Wayback Machine archive…",
+  tier3_jina: "Direct fetch blocked — trying Firecrawl (cloud rendering)…",
+  tier4_wayback: "Firecrawl unavailable — trying Wayback Machine archive…",
   extracting: "Analysing content with AI…",
   retrying_ai: "AI request failed, retrying…",
 };

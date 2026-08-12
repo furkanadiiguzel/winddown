@@ -1,12 +1,12 @@
-import FirecrawlApp from "@mendable/firecrawl-js";
+import { FirecrawlClient } from "@mendable/firecrawl-js";
 
 const TIMEOUT_MS = 30_000;
 
 /**
  * Tier 3 — Firecrawl API.
  * Cloud-hosted real-browser rendering with anti-bot bypass.
- * Returns clean markdown of the page + up to 2 contact/about sub-pages.
- * Requires FIRECRAWL_API_KEY env var; throws if missing or call fails.
+ * Scrapes homepage + /contact + /about concurrently and returns clean markdown.
+ * Requires FIRECRAWL_API_KEY env var.
  */
 export async function fetchViaFirecrawl(
   url: string
@@ -14,9 +14,9 @@ export async function fetchViaFirecrawl(
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) throw new Error("FIRECRAWL_API_KEY not configured");
 
-  const app = new FirecrawlApp({ apiKey });
+  const client = new FirecrawlClient({ apiKey });
 
-  // Scrape homepage + common contact/about sub-paths concurrently
+  // Scrape homepage + common contact/about sub-pages concurrently
   const subPaths = ["/contact", "/about", "/contact-us", "/about-us"];
   const subUrls = subPaths.slice(0, 2).map((p) => {
     try { return new URL(p, url).href; } catch { return null; }
@@ -30,15 +30,16 @@ export async function fetchViaFirecrawl(
   try {
     const results = await Promise.allSettled(
       allUrls.map((u) =>
-        app.scrapeUrl(u, { formats: ["markdown"] })
+        client.scrapeUrl(u, { formats: ["markdown"] })
       )
     );
 
     const pages: Array<{ url: string; markdown: string }> = [];
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
-      if (r.status === "fulfilled" && r.value.success) {
-        const md = (r.value as { markdown?: string }).markdown ?? "";
+      if (r.status === "fulfilled") {
+        const data = r.value as Record<string, unknown>;
+        const md = (data?.markdown ?? data?.content ?? "") as string;
         if (md.trim().length > 30) {
           pages.push({ url: allUrls[i], markdown: md });
         }
