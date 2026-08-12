@@ -2,11 +2,11 @@ import { checkUrl, SsrfBlockedError } from "./ssrf-guard";
 import { isAllowed } from "./robots";
 import { fetchPage, discoverLinks } from "./tier1";
 import { prunePages, type PageBlock } from "./pruner";
-import { fetchViaJina } from "./tier3-jina";
+import { fetchViaFirecrawl } from "./tier3-firecrawl";
 import { fetchViaWayback } from "./tier4-wayback";
 
 const USER_AGENT = "WinddownBot/1.0 (+https://winddown.app)";
-const SPA_BODY_THRESHOLD = 500; // chars; below this Tier 2 is attempted
+const SPA_BODY_THRESHOLD = 500;
 
 export interface ScrapeResult {
   pages: PageBlock[];
@@ -37,6 +37,15 @@ export class Tier2UnavailableError extends Error {
 
 export interface ScrapeOptions {
   onEvent?: (event: ScrapeEvent) => void;
+}
+
+function markdownToHtml(md: string): string {
+  return md
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .map((l) => `<p>${l}</p>`)
+    .join("\n");
 }
 
 export async function scrape(
@@ -70,83 +79,47 @@ export async function scrape(
     return { pages: [], events, errorClass: "robots_blocked" };
   }
 
-  // 3. Tier 1 fetch of homepage
+  // 3. Tier 1 — direct fetch + cheerio
   emit({ type: "fetching_home", url });
 
   let homeHtml = "";
-  let homeSpaCandidate = false; // whether body looks thin enough for Tier 2
+  let homeSpaCandidate = false;
 
   try {
     const homeResult = await fetchPage(url);
-    // homeHtml (reconstructed) is used only for link discovery
     homeHtml = `<html><head><title>${homeResult.title}</title></head><body>
       ${homeResult.headings.map((h) => `<h2>${h}</h2>`).join("\n")}
       <footer>${homeResult.footerText}</footer>
       <div id="body-text">${homeResult.bodyText}</div>
     </body></html>`;
-    // Pass raw HTML to pruner so it can see full element structure (addresses, li, etc.)
     rawPages.push({ url, html: homeResult.rawHtml });
     homeSpaCandidate = homeResult.bodyText.length < SPA_BODY_THRESHOLD;
   } catch {
-    // Tier 1 failed — try Tier 3 (Jina AI Reader)
-    emit({ type: "tier3_jina" });
-    let jinaOk = false;
+    // Tier 1 failed — try Tier 3 (Firecrawl)
+    emit({ type: "tier3_jina" }); // reuse event type for UI label
 
     try {
-      const { text } = await fetchViaJina(url);
-      // Split Jina's clean text into paragraph elements so pruner can filter by line
-      const paras = text
-        .split(/\n+/)
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0)
-        .map((l) => `<p>${l}</p>`)
-        .join("\n");
-      homeHtml = `<html><body>${paras}</body></html>`;
-      rawPages.push({ url, html: homeHtml });
-      jinaOk = true;
-
-      // Also try common contact/about sub-pages via Jina concurrently
-      // (contact info is often only on contact/about pages)
-      const jinaSubPaths = ["/contact", "/about", "/contact-us", "/about-us", "/our-company"];
-      const jinaSubResults = await Promise.allSettled(
-        jinaSubPaths.slice(0, 3).map(async (path) => {
-          const subUrl = new URL(path, url).href;
-          const { text: subText } = await fetchViaJina(subUrl);
-          return { subUrl, subText };
-        })
-      );
-      for (const r of jinaSubResults) {
-        if (r.status === "fulfilled") {
-          const { subUrl, subText } = r.value;
-          emit({ type: "fetching_page", url: subUrl });
-          const subParas = subText
-            .split(/\n+/)
-            .map((l) => l.trim())
-            .filter((l) => l.length > 0)
-            .map((l) => `<p>${l}</p>`)
-            .join("\n");
-          rawPages.push({ url: subUrl, html: `<html><body>${subParas}</body></html>` });
-        }
+      const { pages: fcPages } = await fetchViaFirecrawl(url);
+      for (const p of fcPages) {
+        emit({ type: "fetching_page", url: p.url });
+        rawPages.push({ url: p.url, html: `<html><body>${markdownToHtml(p.markdown)}</body></html>` });
       }
     } catch {
-      // Jina failed — try Tier 4 (Wayback Machine)
+      // Firecrawl failed — try Tier 4 (Wayback Machine)
       emit({ type: "tier4_wayback" });
       try {
         const { html } = await fetchViaWayback(url);
-        homeHtml = html;
-        rawPages.push({ url, html: homeHtml });
+        rawPages.push({ url, html });
       } catch {
-        // All tiers exhausted
         return { pages: [], events, errorClass: "fetch_error" };
       }
     }
 
-    // Jina/Wayback path: prune and return (sub-pages already added above)
     const pages = prunePages(rawPages);
     return { pages, events };
   }
 
-  // 4. Tier 2 fallback for SPA shells (only when Tier 1 succeeded)
+  // 4. Tier 2 — Playwright headless for SPA shells
   if (homeSpaCandidate && tier2) {
     try {
       const t2Result = await tier2.fetch(url);
@@ -159,11 +132,10 @@ export async function scrape(
     emit({ type: "tier2_unavailable" });
   }
 
-  // 5. Link discovery
+  // 5. Link discovery + sub-page fetches
   const candidateUrls = discoverLinks(url, homeHtml);
   emit({ type: "found_pages", urls: candidateUrls });
 
-  // 6. Fetch candidate sub-pages
   for (const candidateUrl of candidateUrls) {
     emit({ type: "fetching_page", url: candidateUrl });
 
@@ -184,11 +156,19 @@ export async function scrape(
       const pageResult = await fetchPage(candidateUrl);
       rawPages.push({ url: candidateUrl, html: pageResult.rawHtml });
     } catch {
-      // Sub-page failure — skip silently
+      // Sub-page failure — try Firecrawl for this sub-page too
+      try {
+        const { pages: fcPages } = await fetchViaFirecrawl(candidateUrl);
+        for (const p of fcPages) {
+          rawPages.push({ url: p.url, html: `<html><body>${markdownToHtml(p.markdown)}</body></html>` });
+        }
+      } catch {
+        // skip silently
+      }
     }
   }
 
-  // 7. Prune and cap
+  // 6. Prune and cap
   const pages = prunePages(rawPages);
   return { pages, events };
 }
