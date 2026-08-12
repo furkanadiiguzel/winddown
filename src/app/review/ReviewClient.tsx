@@ -90,6 +90,12 @@ export default function ReviewClient() {
       signerName: store.signerName,
       signerTitle: store.signerTitle,
       signingDate: store.signingDate,
+      // Corp-directors
+      dateOfIncorporation: store.dateOfIncorporation || undefined,
+      sharesIssuedOption: (store.sharesIssuedOption || undefined) as IntakeState["sharesIssuedOption"],
+      authorizationOption: (store.authorizationOption || undefined) as IntakeState["authorizationOption"],
+      // Corp-shareholders
+      dateAuthorizationGranted: store.dateAuthorizationGranted || undefined,
     }),
     [store, extractionResult.fields, companyLegalName]
   );
@@ -125,23 +131,27 @@ export default function ReviewClient() {
     return Object.keys(errors).length === 0;
   }, [companyLegalName]);
 
-  // Step 2 gate: signer details must be filled before certification
+  // Step 2 gate: signer details + entity-specific fields
   const checkStep2 = useCallback((): boolean => {
     const errors: Record<string, string> = {};
-    const step2Fields = ["signerName", "signerTitle", "signingDate"] as const;
     const values: Record<string, string> = {
       signerName: store.signerName,
       signerTitle: store.signerTitle,
       signingDate: store.signingDate,
     };
-    for (const field of step2Fields) {
-      if (!values[field] || values[field].trim() === "") {
-        errors[field] = `${fieldLabel(field)} is required`;
-      }
+    for (const [field, val] of Object.entries(values)) {
+      if (!val || val.trim() === "") errors[field] = `${fieldLabel(field)} is required`;
+    }
+    if (currentEntityType === "wyoming-corp-directors") {
+      if (!store.sharesIssuedOption) errors.sharesIssuedOption = "Select one option about shares / commencement";
+      if (!store.authorizationOption) errors.authorizationOption = "Select who authorized the dissolution";
+    }
+    if (currentEntityType === "wyoming-corp-shareholders") {
+      if (!store.dateAuthorizationGranted) errors.dateAuthorizationGranted = "Date dissolution was authorized is required";
     }
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
-  }, [store.signerName, store.signerTitle, store.signingDate]);
+  }, [store.signerName, store.signerTitle, store.signingDate, store.sharesIssuedOption, store.authorizationOption, store.dateAuthorizationGranted, currentEntityType]);
 
   const handleContinueToGaps = () => {
     if (lowConfidenceLocked) return;
@@ -429,6 +439,98 @@ export default function ReviewClient() {
                   </select>
                   <p className="text-xs text-zinc-500">Select the form that matches your entity. If unsure, check your original filing documents.</p>
                 </div>
+
+                {/* ── Corp Directors: additional required fields ── */}
+                {currentEntityType === "wyoming-corp-directors" && (
+                  <div className="space-y-5 border-t-2 border-navy/10 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="dateOfIncorporation" className="text-xs font-bold uppercase tracking-widest">Date of Incorporation</Label>
+                      <Input
+                        id="dateOfIncorporation"
+                        type="date"
+                        value={store.dateOfIncorporation}
+                        onChange={(e) => useFormState.setState({ dateOfIncorporation: e.target.value, certificationAffirmed: false, userConfirmedReview: false })}
+                      />
+                    </div>
+
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-bold uppercase tracking-widest text-navy">
+                        Check one box only *
+                      </legend>
+                      <p className="text-xs text-navy/60">Status at time of dissolution:</p>
+                      {[
+                        { value: "no-shares-issued", label: "None of the shares have been issued." },
+                        { value: "not-commenced", label: "The corporation has not commenced business." },
+                      ].map((opt) => (
+                        <label key={opt.value} className={`flex items-start gap-3 p-3 border-2 cursor-pointer transition-colors ${store.sharesIssuedOption === opt.value ? "border-navy bg-brand-yellow/20" : "border-navy/30 bg-white hover:border-navy"}`}>
+                          <input
+                            type="radio"
+                            name="sharesIssuedOption"
+                            value={opt.value}
+                            checked={store.sharesIssuedOption === opt.value}
+                            onChange={() => useFormState.setState({ sharesIssuedOption: opt.value as "no-shares-issued" | "not-commenced", certificationAffirmed: false, userConfirmedReview: false })}
+                            className="mt-0.5 accent-navy"
+                          />
+                          <span className="text-sm text-navy">{opt.label}</span>
+                        </label>
+                      ))}
+                      {validationErrors.sharesIssuedOption && (
+                        <p className="text-xs font-bold text-brand-red uppercase tracking-wide">{validationErrors.sharesIssuedOption}</p>
+                      )}
+                    </fieldset>
+
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-bold uppercase tracking-widest text-navy">
+                        Check one box only *
+                      </legend>
+                      <p className="text-xs text-navy/60">Who authorized the dissolution:</p>
+                      {[
+                        { value: "incorporators", label: "A majority of the incorporators authorized the dissolution." },
+                        { value: "initial-directors", label: "A majority of the initial directors authorize the dissolution." },
+                      ].map((opt) => (
+                        <label key={opt.value} className={`flex items-start gap-3 p-3 border-2 cursor-pointer transition-colors ${store.authorizationOption === opt.value ? "border-navy bg-brand-yellow/20" : "border-navy/30 bg-white hover:border-navy"}`}>
+                          <input
+                            type="radio"
+                            name="authorizationOption"
+                            value={opt.value}
+                            checked={store.authorizationOption === opt.value}
+                            onChange={() => useFormState.setState({ authorizationOption: opt.value as "incorporators" | "initial-directors", certificationAffirmed: false, userConfirmedReview: false })}
+                            className="mt-0.5 accent-navy"
+                          />
+                          <span className="text-sm text-navy">{opt.label}</span>
+                        </label>
+                      ))}
+                      {validationErrors.authorizationOption && (
+                        <p className="text-xs font-bold text-brand-red uppercase tracking-wide">{validationErrors.authorizationOption}</p>
+                      )}
+                    </fieldset>
+
+                    <div className="border-2 border-navy/20 bg-white p-3 text-xs text-navy/60 space-y-1">
+                      <p>✓ The net assets of the corporation remaining after winding up have been distributed to the shareholders, if shares were issued.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Corp Shareholders: date authorization granted ── */}
+                {currentEntityType === "wyoming-corp-shareholders" && (
+                  <div className="space-y-2 border-t-2 border-navy/10 pt-4">
+                    <Label htmlFor="dateAuthorizationGranted" className="text-xs font-bold uppercase tracking-widest">
+                      Date Dissolution was Authorized *
+                    </Label>
+                    <Input
+                      id="dateAuthorizationGranted"
+                      type="date"
+                      value={store.dateAuthorizationGranted}
+                      onChange={(e) => useFormState.setState({ dateAuthorizationGranted: e.target.value, certificationAffirmed: false, userConfirmedReview: false })}
+                    />
+                    {validationErrors.dateAuthorizationGranted && (
+                      <p className="text-xs font-bold text-brand-red uppercase tracking-wide">{validationErrors.dateAuthorizationGranted}</p>
+                    )}
+                    <div className="border-2 border-navy/20 bg-white p-3 text-xs text-navy/60">
+                      <p>✓ Approved by shareholders — this form certifies shareholder authorization of the dissolution.</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* T055 — unsupported entity type notice */}
                 {isUnsupportedEntityType && (

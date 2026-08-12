@@ -17,6 +17,14 @@ export const IntakeStateSchema = z
     signerTitle: z.string().min(1, "Signer title is required"),
     signingDate: z.string().min(1, "Signing date is required"),
 
+    // Corp-directors specific
+    dateOfIncorporation: z.string().optional(),
+    sharesIssuedOption: z.enum(["no-shares-issued", "not-commenced", ""]).optional(),
+    authorizationOption: z.enum(["incorporators", "initial-directors", ""]).optional(),
+
+    // Corp-shareholders specific
+    dateAuthorizationGranted: z.string().optional(),
+
     fieldProvenances: z.record(z.string(), z.enum(["extracted", "manual"])).optional(),
   })
   .superRefine((data, ctx) => {
@@ -34,6 +42,14 @@ export const IntakeStateSchema = z
           path: ["userConfirmedReview"],
           message: "Review confirmation must be affirmed before generating the final document.",
         });
+      }
+      if (data.entityType === "wyoming-corp-directors") {
+        if (!data.sharesIssuedOption) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["sharesIssuedOption"], message: "Select one: no shares issued or business not commenced." });
+        }
+        if (!data.authorizationOption) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["authorizationOption"], message: "Select one: incorporators or initial directors authorized." });
+        }
       }
     }
   });

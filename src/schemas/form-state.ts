@@ -27,6 +27,14 @@ export const FormStateSchema = z.object({
   stateConfirmedWyoming: z.boolean(),
   entityType: z.string(),
 
+  // Corp-directors specific
+  dateOfIncorporation: z.string(),
+  sharesIssuedOption: z.enum(["no-shares-issued", "not-commenced", ""]),
+  authorizationOption: z.enum(["incorporators", "initial-directors", ""]),
+
+  // Corp-shareholders specific
+  dateAuthorizationGranted: z.string(),
+
   // Authorization
   authorizationAffirmed: z.boolean(),
 
@@ -53,6 +61,10 @@ export const initialFormState: FormState = {
   signingDate: "",
   stateConfirmedWyoming: false,
   entityType: "",
+  dateOfIncorporation: "",
+  sharesIssuedOption: "" as const,
+  authorizationOption: "" as const,
+  dateAuthorizationGranted: "",
   authorizationAffirmed: false,
   certificationAffirmed: false,
   userConfirmedReview: false,

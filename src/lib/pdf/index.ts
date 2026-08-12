@@ -78,18 +78,35 @@ export async function fillPdf(options: FillPdfOptions): Promise<Uint8Array> {
     companyLegalName: intakeState.companyLegalName,
     signerName: intakeState.signerName,
     signerTitle: intakeState.signerTitle,
-    // Official form requires mm/dd/yyyy format
     signingDate: formatDateForForm(intakeState.signingDate),
     contactEmail: intakeState.contactEmail ?? "",
     contactPhone: intakeState.contactPhone ?? "",
-    contactPerson: intakeState.signerName, // contact person defaults to signer
-    // Certification checkbox: checked iff user affirmed (UI checkbox drives PDF checkbox)
+    contactPerson: intakeState.signerName,
+
+    // LLC-specific
     certificationAffirmed: intakeState.certificationAffirmed,
-    // Pre-submission checklist — all pre-checked for Winddown-generated PDFs
+
+    // Corp-directors specific
+    dateOfIncorporation: intakeState.dateOfIncorporation
+      ? formatDateForForm(intakeState.dateOfIncorporation)
+      : "",
+    noSharesIssued:           intakeState.sharesIssuedOption === "no-shares-issued",
+    businessNotCommenced:     intakeState.sharesIssuedOption === "not-commenced",
+    incorporatorsAuthorized:  intakeState.authorizationOption === "incorporators",
+    initialDirectorsAuthorized: intakeState.authorizationOption === "initial-directors",
+
+    // Corp-shareholders specific
+    dateAuthorizationGranted: intakeState.dateAuthorizationGranted
+      ? formatDateForForm(intakeState.dateAuthorizationGranted)
+      : "",
+    approvedByShareholders: true, // always checked — this is the shareholders form
+
+    // Pre-submission informational checkboxes — always checked
     checklistFee: true,
     checklistGoodStanding: true,
     checklistProcessingTime: true,
     checklistMailAndReview: true,
+    checklistMail: true,
   };
 
   for (const [fieldId, entry] of Object.entries(template.fieldMap)) {
