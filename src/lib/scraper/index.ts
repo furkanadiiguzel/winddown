@@ -190,7 +190,8 @@ export async function scrape(
   }
 
   // 5. Link discovery + sub-page fetches
-  const candidateUrls = discoverLinks(url, homeHtml);
+  // Use raw HTML (not reconstructed) so actual <a> tags are available
+  const candidateUrls = discoverLinks(url, homeRawHtml);
   emit({ type: "found_pages", urls: candidateUrls });
 
   for (const candidateUrl of candidateUrls) {

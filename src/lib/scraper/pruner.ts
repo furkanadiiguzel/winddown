@@ -121,7 +121,7 @@ export function prunePage(url: string, html: string): PageBlock {
     if (t.length > 1) add(t);
   });
 
-  // 3. Fallback: if we got very little, use full body text
+  // 3. Fallback: if DOM walk produced sparse results, use full body text instead
   const joined = parts.join("\n");
 
   // Prepend structured contact info so AI always sees it first
@@ -132,9 +132,12 @@ export function prunePage(url: string, html: string): PageBlock {
     ? `[STRUCTURED CONTACT DATA]\n${structuredLines.join("\n")}\n[END STRUCTURED DATA]\n\n`
     : "";
 
-  if (joined.length < 200) {
+  // Raise threshold: meta title + description alone can be ~200 chars;
+  // use bodyText fallback if DOM walk contributed little real page content
+  if (joined.length < 800) {
     const bodyText = $("body").text().replace(/\s+/g, " ").trim();
-    return { url, title, text: (jsonLdBlock + bodyText).slice(0, TOTAL_CHAR_CAP) };
+    const content = bodyText.length > joined.length ? bodyText : joined;
+    return { url, title, text: (jsonLdBlock + content).slice(0, TOTAL_CHAR_CAP) };
   }
 
   return { url, title, text: (jsonLdBlock + joined).slice(0, TOTAL_CHAR_CAP) };
