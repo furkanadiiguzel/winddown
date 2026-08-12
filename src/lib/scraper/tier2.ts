@@ -4,6 +4,22 @@ import { Tier2UnavailableError } from "./index";
 const TIMEOUT_MS = 20_000;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
+// Minimal local interface so this file has no compile-time dependency on
+// playwright-core (which is a devDependency and unavailable in Vercel production builds).
+// The real playwright-core types are structurally compatible at runtime.
+interface PwBrowser {
+  newContext(opts: { extraHTTPHeaders: Record<string, string> }): Promise<PwContext>;
+  close(): Promise<void>;
+}
+interface PwContext {
+  newPage(): Promise<PwPage>;
+  close(): Promise<void>;
+}
+interface PwPage {
+  goto(url: string, opts: { waitUntil: string; timeout: number }): Promise<unknown>;
+  content(): Promise<string>;
+}
+
 /**
  * Tier 2 headless scraper using Playwright + @sparticuz/chromium.
  * Only instantiated when ENABLE_TIER2_RENDER=true; any init failure
@@ -11,23 +27,20 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
  * and degrade honestly to the Tier 1 result.
  */
 export class PlaywrightScraper implements ScraperTier {
-  private browserPromise: Promise<import("playwright-core").Browser> | null = null;
+  private browserPromise: Promise<PwBrowser> | null = null;
 
-  private async getBrowser(): Promise<import("playwright-core").Browser> {
+  private async getBrowser(): Promise<PwBrowser> {
     if (!this.browserPromise) {
       this.browserPromise = this.initBrowser();
     }
     return this.browserPromise;
   }
 
-  private async initBrowser(): Promise<import("playwright-core").Browser> {
+  private async initBrowser(): Promise<PwBrowser> {
     if (process.env.ENABLE_TIER2_RENDER !== "true") {
       throw new Tier2UnavailableError("ENABLE_TIER2_RENDER is not set");
     }
     try {
-      // @sparticuz/chromium provides a Lambda/Vercel-compatible Chromium binary.
-      // In local dev, playwright-core finds a local browser; in production,
-      // chromium.executablePath() returns the bundled binary path.
       let executablePath: string | undefined;
       try {
         const chromium = await import("@sparticuz/chromium");
@@ -41,7 +54,7 @@ export class PlaywrightScraper implements ScraperTier {
         executablePath,
         args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
         headless: true,
-      });
+      }) as Promise<PwBrowser>;
     } catch (err) {
       throw new Tier2UnavailableError(
         `Browser init failed: ${err instanceof Error ? err.message : String(err)}`
@@ -50,7 +63,7 @@ export class PlaywrightScraper implements ScraperTier {
   }
 
   async fetch(url: string): Promise<{ html: string }> {
-    let browser: import("playwright-core").Browser;
+    let browser: PwBrowser;
     try {
       browser = await this.getBrowser();
     } catch (err) {
@@ -65,8 +78,6 @@ export class PlaywrightScraper implements ScraperTier {
 
     try {
       await page.goto(url, { waitUntil: "networkidle", timeout: TIMEOUT_MS });
-
-      // Enforce body size cap
       const html = await page.content();
       const bytes = new TextEncoder().encode(html).length;
       await context.close();
