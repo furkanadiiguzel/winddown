@@ -35,6 +35,9 @@ export const FormStateSchema = z.object({
   // Corp-shareholders specific
   dateAuthorizationGranted: z.string(),
 
+  // Drawn signature (PNG data URL)
+  signatureDataUrl: z.string().nullable(),
+
   // Authorization
   authorizationAffirmed: z.boolean(),
 
@@ -65,6 +68,7 @@ export const initialFormState: FormState = {
   sharesIssuedOption: "" as const,
   authorizationOption: "" as const,
   dateAuthorizationGranted: "",
+  signatureDataUrl: null,
   authorizationAffirmed: false,
   certificationAffirmed: false,
   userConfirmedReview: false,

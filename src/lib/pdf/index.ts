@@ -141,6 +141,38 @@ export async function fillPdf(options: FillPdfOptions): Promise<Uint8Array> {
     }
   }
 
+  // Embed drawn signature image if provided
+  if (intakeState.signatureDataUrl) {
+    try {
+      const base64 = intakeState.signatureDataUrl.replace(/^data:image\/png;base64,/, "");
+      const imgBytes = Buffer.from(base64, "base64");
+      const sigImage = await pdfDoc.embedPng(imgBytes);
+      const pages = pdfDoc.getPages();
+      const page = pages[0];
+
+      // Signature placement per form — x, y = bottom-left of signature box (PDF coords from bottom)
+      // Derived from field widget positions: signature line sits just above "Printed Name" field
+      const sigCoords: Record<string, { x: number; y: number; w: number; h: number }> = {
+        "wyoming-llc":              { x: 85, y: 378, w: 200, h: 35 },
+        "wyoming-corp-directors":   { x: 85, y: 256, w: 200, h: 35 },
+        "wyoming-corp-shareholders":{ x: 86, y: 315, w: 200, h: 35 },
+      };
+
+      const coords = sigCoords[intakeState.entityType];
+      if (coords) {
+        page.drawImage(sigImage, {
+          x: coords.x,
+          y: coords.y,
+          width: coords.w,
+          height: coords.h,
+          opacity: 1,
+        });
+      }
+    } catch {
+      // Signature embedding failed — continue without it rather than crashing
+    }
+  }
+
   // Flatten form fields so the PDF renders consistently across viewers
   form.flatten();
 

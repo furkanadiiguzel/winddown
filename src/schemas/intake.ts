@@ -25,6 +25,9 @@ export const IntakeStateSchema = z
     // Corp-shareholders specific
     dateAuthorizationGranted: z.string().optional(),
 
+    // Drawn signature PNG data URL
+    signatureDataUrl: z.string().nullable().optional(),
+
     fieldProvenances: z.record(z.string(), z.enum(["extracted", "manual"])).optional(),
   })
   .superRefine((data, ctx) => {

@@ -7,6 +7,7 @@ import { STUB_EXTRACTION_RESULT } from "@/lib/stubs/extraction-result";
 import { FieldCard } from "@/components/FieldCard";
 import { CertificationStep } from "@/components/CertificationStep";
 import { PdfPreviewModal } from "@/components/PdfPreviewModal";
+import { SignaturePadModal } from "@/components/SignaturePadModal";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -96,6 +97,8 @@ export default function ReviewClient() {
       authorizationOption: (store.authorizationOption || undefined) as IntakeState["authorizationOption"],
       // Corp-shareholders
       dateAuthorizationGranted: store.dateAuthorizationGranted || undefined,
+      // Signature
+      signatureDataUrl: store.signatureDataUrl ?? undefined,
     }),
     [store, extractionResult.fields, companyLegalName]
   );
@@ -168,6 +171,9 @@ export default function ReviewClient() {
   const handleCertificationContinue = () => {
     setCurrentSection("preview");
   };
+
+  // --- Signature pad modal ---
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
 
   // --- PDF preview modal ---
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -386,6 +392,40 @@ export default function ReviewClient() {
                 <CardTitle id="gaps-heading">Step 2 — Complete missing information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+
+                {/* ── Signature ── */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest">Signature *</Label>
+                  {store.signatureDataUrl ? (
+                    <div className="border-2 border-navy bg-white p-3 space-y-2">
+                      <img
+                        src={store.signatureDataUrl}
+                        alt="Your signature"
+                        className="max-h-16 w-auto"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignatureModal(true)}
+                        className="text-xs font-bold uppercase tracking-widest text-navy/60 hover:text-navy underline"
+                      >
+                        Re-sign
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowSignatureModal(true)}
+                      className="w-full flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                      Draw Your Signature →
+                    </Button>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="signerName">Signer name *</Label>
                   <Input
@@ -665,6 +705,16 @@ export default function ReviewClient() {
           </section>
         )}
       </div>
+
+      {showSignatureModal && (
+        <SignaturePadModal
+          onSave={(dataUrl) => {
+            useFormState.setState({ signatureDataUrl: dataUrl, certificationAffirmed: false, userConfirmedReview: false });
+            setShowSignatureModal(false);
+          }}
+          onClose={() => setShowSignatureModal(false)}
+        />
+      )}
     </main>
   );
 }
