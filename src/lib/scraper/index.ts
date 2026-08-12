@@ -163,12 +163,18 @@ export async function scrape(
     const spaDiscoveredUrls = discoverLinks(url, homeRawHtml);
     try {
       const { pages: fcPages } = await fetchViaFirecrawl(url, spaDiscoveredUrls);
-      // Replace rawPages with Firecrawl-rendered content
-      rawPages.length = 0;
+      // Keep Tier 1 rawHtml as first entry (contains JSON-LD structured data),
+      // then add Firecrawl JS-rendered pages alongside it
       for (const p of fcPages) {
+        // Skip duplicate homepage — Tier 1 rawHtml already covers it for JSON-LD
+        if (p.url === url) continue;
         rawPages.push({ url: p.url, html: `<html><body>${markdownToHtml(p.markdown)}</body></html>` });
       }
-      // Firecrawl already fetches homepage + /contact + /about; skip link discovery
+      // Also keep Firecrawl homepage text (may have rendered content Tier 1 missed)
+      const fcHome = fcPages.find((p) => p.url === url);
+      if (fcHome) {
+        rawPages.push({ url: `${url}#rendered`, html: `<html><body>${markdownToHtml(fcHome.markdown)}</body></html>` });
+      }
       const pages = prunePages(rawPages);
       return { pages, events };
     } catch {
