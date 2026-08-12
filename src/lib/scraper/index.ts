@@ -78,12 +78,14 @@ export async function scrape(
 
   try {
     const homeResult = await fetchPage(url);
+    // homeHtml (reconstructed) is used only for link discovery
     homeHtml = `<html><head><title>${homeResult.title}</title></head><body>
       ${homeResult.headings.map((h) => `<h2>${h}</h2>`).join("\n")}
       <footer>${homeResult.footerText}</footer>
       <div id="body-text">${homeResult.bodyText}</div>
     </body></html>`;
-    rawPages.push({ url, html: homeHtml });
+    // Pass raw HTML to pruner so it can see full element structure (addresses, li, etc.)
+    rawPages.push({ url, html: homeResult.rawHtml });
     homeSpaCandidate = homeResult.bodyText.length < SPA_BODY_THRESHOLD;
   } catch {
     // Tier 1 failed — try Tier 3 (Jina AI Reader)
@@ -92,7 +94,14 @@ export async function scrape(
 
     try {
       const { text } = await fetchViaJina(url);
-      homeHtml = `<html><body><div id="body-text">${text}</div></body></html>`;
+      // Split Jina's clean text into paragraph elements so pruner can filter by line
+      const paras = text
+        .split(/\n+/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0)
+        .map((l) => `<p>${l}</p>`)
+        .join("\n");
+      homeHtml = `<html><body>${paras}</body></html>`;
       rawPages.push({ url, html: homeHtml });
       jinaOk = true;
     } catch {
@@ -151,12 +160,7 @@ export async function scrape(
 
     try {
       const pageResult = await fetchPage(candidateUrl);
-      const html = `<html><head><title>${pageResult.title}</title></head><body>
-        ${pageResult.headings.map((h) => `<h2>${h}</h2>`).join("\n")}
-        <footer>${pageResult.footerText}</footer>
-        <div id="body-text">${pageResult.bodyText}</div>
-      </body></html>`;
-      rawPages.push({ url: candidateUrl, html });
+      rawPages.push({ url: candidateUrl, html: pageResult.rawHtml });
     } catch {
       // Sub-page failure — skip silently
     }

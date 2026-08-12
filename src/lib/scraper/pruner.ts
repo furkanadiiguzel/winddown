@@ -1,11 +1,13 @@
 import * as cheerio from "cheerio";
 
-// `\b` after a dot doesn't work (dot is non-word), so use a lookahead instead.
 const ENTITY_SUFFIX = /\b(?:LLC|L\.L\.C\.|Inc\.?|Corp\.?|Ltd\.?|Company)(?=[\s,.;:)!]|$)/i;
 const CONTACT_PATTERN = /[\w.+-]+@[\w-]+\.[a-z]{2,}|\+?[\d][\d\s\-().]{6,}\d/;
 const GOVERNING_LAW = /governing\s+law|jurisdiction|formed\s+in|organized\s+under/i;
+const ADDRESS_PATTERN =
+  /\d{1,5}\s+\w[\w\s.,-]{2,}\s+(?:street|st|avenue|ave|road|rd|blvd|boulevard|drive|dr|lane|ln|way|place|pl|suite|ste|floor|fl|hwy|highway|pkwy|parkway)\.?\b|\b(?:po\s+box|p\.o\.\s+box)\s+\d+/i;
+const STATE_ZIP_PATTERN = /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/;
 
-const TOTAL_CHAR_CAP = 8_000;
+const TOTAL_CHAR_CAP = 12_000;
 
 export interface PageBlock {
   url: string;
@@ -13,55 +15,93 @@ export interface PageBlock {
   text: string;
 }
 
-/**
- * Prunes a page's HTML to the content most likely to contain entity-identifying
- * information: title, headings, footer text, and paragraphs matching entity
- * suffix, contact, or governing-law patterns. Returns a single text block.
- */
+function qualifies(t: string): boolean {
+  return (
+    ENTITY_SUFFIX.test(t) ||
+    CONTACT_PATTERN.test(t) ||
+    GOVERNING_LAW.test(t) ||
+    ADDRESS_PATTERN.test(t) ||
+    STATE_ZIP_PATTERN.test(t)
+  );
+}
+
 export function prunePage(url: string, html: string): PageBlock {
   const $ = cheerio.load(html);
-  $("script, style, noscript").remove();
+  $("script, style, noscript, iframe, svg").remove();
 
   const title = $("title").first().text().trim();
   const parts: string[] = [];
+  const seen = new Set<string>();
 
-  if (title) parts.push(title);
+  function add(t: string) {
+    const normalized = t.replace(/\s+/g, " ").trim();
+    if (normalized.length > 3 && !seen.has(normalized)) {
+      seen.add(normalized);
+      parts.push(normalized);
+    }
+  }
 
-  $("h1, h2, h3").each((_, el) => {
-    const t = $(el).text().trim();
-    if (t) parts.push(t);
-  });
+  if (title) add(title);
 
-  // Footer / contentinfo text
-  const footerSels = ["footer", '[role="contentinfo"]', '[class*="footer"]', '[id*="footer"]'];
-  const footerSeen = new Set<string>();
+  $("h1, h2, h3").each((_, el) => add($(el).text()));
+
+  // Footer / contentinfo areas — always include fully
+  const footerSels = [
+    "footer",
+    '[role="contentinfo"]',
+    '[class*="footer"]',
+    '[id*="footer"]',
+  ];
   for (const sel of footerSels) {
+    $(sel).each((_, el) => add($(el).text()));
+  }
+
+  // Contact / address containers — always include
+  const contactSels = [
+    "address",
+    '[class*="address"]',
+    '[id*="address"]',
+    '[class*="contact"]',
+    '[id*="contact"]',
+    '[class*="location"]',
+    '[id*="location"]',
+    '[class*="phone"]',
+    '[id*="phone"]',
+    '[class*="email"]',
+    '[id*="email"]',
+    '[class*="info"]',
+    '[id*="info"]',
+    '[class*="about"]',
+    '[id*="about"]',
+  ];
+  for (const sel of contactSels) {
+    $(sel).each((_, el) => add($(el).text()));
+  }
+
+  // Qualifying leaf elements: p, li, span, td, div — filtered by content patterns
+  const leafSels = ["p", "li", "td", "span", "div"];
+  for (const sel of leafSels) {
     $(sel).each((_, el) => {
-      const t = $(el).text().replace(/\s+/g, " ").trim();
-      if (t && !footerSeen.has(t)) {
-        footerSeen.add(t);
-        parts.push(t);
+      // Skip elements that contain other block children (avoid duplicating containers)
+      const $el = $(el);
+      if (sel === "div" || sel === "span") {
+        const hasBlockChild = $el.find("p, div, li, table, article, section").length > 0;
+        if (hasBlockChild) return;
       }
+      const t = $el.text().replace(/\s+/g, " ").trim();
+      if (t.length < 5 || t.length > 1_000) return;
+      if (qualifies(t)) add(t);
     });
   }
 
-  // Qualifying paragraphs
-  $("p").each((_, el) => {
-    const t = $(el).text().replace(/\s+/g, " ").trim();
-    if (!t) return;
-    if (ENTITY_SUFFIX.test(t) || CONTACT_PATTERN.test(t) || GOVERNING_LAW.test(t)) {
-      parts.push(t);
-    }
-  });
+  // Meta tags — description, keywords can hold company name
+  const metaDesc = $('meta[name="description"]').attr("content") ?? "";
+  if (metaDesc && qualifies(metaDesc)) add(metaDesc);
 
-  const text = Array.from(new Set(parts)).join("\n").trim();
+  const text = parts.join("\n").trim();
   return { url, title, text };
 }
 
-/**
- * Prunes multiple pages and enforces an 8 000-character total cap across
- * all blocks (truncating in fetch order).
- */
 export function prunePages(pages: Array<{ url: string; html: string }>): PageBlock[] {
   const blocks = pages.map(({ url, html }) => prunePage(url, html));
   let remaining = TOTAL_CHAR_CAP;

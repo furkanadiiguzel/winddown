@@ -14,6 +14,8 @@ export interface PageResult {
   bodyText: string;
   /** Raw HTML body length in bytes (used to detect SPA shells) */
   rawBodyLength: number;
+  /** The raw fetched HTML — passed to pruner to preserve element structure */
+  rawHtml: string;
 }
 
 /**
@@ -126,7 +128,7 @@ function parseHtml(url: string, html: string, rawBodyLength: number): PageResult
   // Full visible body text (for length check and pruner input)
   const bodyText = $("body").text().replace(/\s+/g, " ").trim();
 
-  return { url, title, headings, footerText, bodyText, rawBodyLength };
+  return { url, title, headings, footerText, bodyText, rawBodyLength, rawHtml: html };
 }
 
 // ── T037: Link discovery ──────────────────────────────────────────────────────

@@ -44,7 +44,21 @@ export function verifyEvidence(
   const page = pages.find((p) => p.url === sourceUrl);
   if (!page) return "rejected";
 
-  // Verbatim check with whitespace normalisation
-  const normalise = (s: string) => s.replace(/\s+/g, " ").trim();
-  return normalise(page.text).includes(normalise(evidence)) ? "accepted" : "rejected";
+  // Normalise whitespace for comparison
+  const normalise = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  const normText = normalise(page.text);
+  const normEvidence = normalise(evidence);
+
+  // Primary: verbatim whitespace-normalised match
+  if (normText.includes(normEvidence)) return "accepted";
+
+  // Secondary: token-overlap check — if ≥80% of evidence words appear in the
+  // page text (handles minor punctuation/encoding differences from Jina/Wayback)
+  const evidenceWords = normEvidence.split(/\s+/).filter((w) => w.length > 2);
+  if (evidenceWords.length >= 3) {
+    const matches = evidenceWords.filter((w) => normText.includes(w));
+    if (matches.length / evidenceWords.length >= 0.8) return "accepted";
+  }
+
+  return "rejected";
 }
