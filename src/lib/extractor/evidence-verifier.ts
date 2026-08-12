@@ -40,39 +40,42 @@ export function verifyEvidence(
   // Length bounds
   if (evidence.length < 3 || evidence.length > 500) return "rejected";
 
-  // sourceUrl must be one of the fetched pages
-  const page = pages.find((p) => p.url === sourceUrl);
-  if (!page) return "rejected";
-
   // Normalise: collapse all whitespace variants (including &nbsp; \u00a0) to
   // a single space. JS \s does not match \u00a0, so we replace it explicitly.
   const normalise = (s: string) =>
     s
-      .replace(/\u00a0/g, " ")   // non-breaking space → regular space
-      .replace(/\u2007/g, " ")   // figure space
-      .replace(/\u202f/g, " ")   // narrow no-break space
+      .replace(/\u00a0/g, " ")
+      .replace(/\u2007/g, " ")
+      .replace(/\u202f/g, " ")
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
 
-  const normText = normalise(page.text);
   const normEvidence = normalise(evidence);
-
-  // Primary: verbatim whitespace-normalised match on evidence snippet
-  if (normText.includes(normEvidence)) return "accepted";
-
-  // Secondary: value-based check — if the extracted VALUE itself appears in
-  // the page text, accept. Phone/email/address values are unique enough that
-  // their presence in the page text confirms the extraction (the AI can't
-  // hallucinate a specific phone number that doesn't exist on the page).
   const normValue = normalise(field.value);
-  if (normValue.length >= 5 && normText.includes(normValue)) return "accepted";
 
-  // Tertiary: token-overlap check — ≥70% of evidence words present in page.
-  const evidenceWords = normEvidence.split(/\s+/).filter((w) => w.length > 2);
-  if (evidenceWords.length >= 2) {
-    const matches = evidenceWords.filter((w) => normText.includes(w));
-    if (matches.length / evidenceWords.length >= 0.70) return "accepted";
+  // Find the best matching page. Try exact URL first; if not found, search ALL
+  // pages — the AI sometimes reports a slightly different URL (trailing slash,
+  // /contact vs /contact-us, etc.) for content that actually lives on the
+  // homepage. Rejecting on URL mismatch alone was silently dropping valid fields.
+  const exactPage = pages.find((p) => p.url === sourceUrl);
+  const searchPages = exactPage ? [exactPage] : pages;
+
+  for (const page of searchPages) {
+    const normText = normalise(page.text);
+
+    // Check 1: verbatim evidence snippet match
+    if (normText.includes(normEvidence)) return "accepted";
+
+    // Check 2: value-based match — phone/email/address can't be hallucinated
+    if (normValue.length >= 5 && normText.includes(normValue)) return "accepted";
+
+    // Check 3: token-overlap — ≥70% of evidence words present
+    const words = normEvidence.split(/\s+/).filter((w) => w.length > 2);
+    if (words.length >= 2) {
+      const hits = words.filter((w) => normText.includes(w));
+      if (hits.length / words.length >= 0.70) return "accepted";
+    }
   }
 
   return "rejected";
