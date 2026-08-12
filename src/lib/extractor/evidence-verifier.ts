@@ -70,6 +70,14 @@ export function verifyEvidence(
     // Check 2: value-based match — phone/email/address can't be hallucinated
     if (normValue.length >= 5 && normText.includes(normValue)) return "accepted";
 
+    // Check 2b: comma-insensitive value match — handles multi-line addresses where
+    // the AI joins "Street\nCity, ST ZIP" with a comma but the page text has no comma
+    if (normValue.length >= 10) {
+      const strippedValue = normValue.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+      const strippedText = normText.replace(/,/g, " ").replace(/\s+/g, " ");
+      if (strippedText.includes(strippedValue)) return "accepted";
+    }
+
     // Check 3: token-overlap — ≥70% of evidence words present
     const words = normEvidence.split(/\s+/).filter((w) => w.length > 2);
     if (words.length >= 2) {

@@ -98,6 +98,7 @@ RECOGNITION PATTERNS:
   Partial forms are acceptable: "Cheyenne, WY 82001" alone → extract with confidence medium.
 SCANNING TIPS: footers, contact blocks, about pages; also plain lines between a logo and a phone number.
 FOOTER RULE: An address in the page footer that appears on the same block as the company phone and/or copyright line IS this company's own office address. Extract it even if the company also offers address services to clients (e.g., "use our address on public documents"). The address they offer to clients is described in body prose; their own address is in the footer identity block.
+MULTI-LINE ADDRESSES: Footer addresses often span two or three consecutive lines: "1621 Central Avenue" on one line, "Cheyenne, WY 82001" on the next. For these, use the full multi-line block as your verbatim evidence (copy both lines exactly as printed, joined by a space or as-is); for the value, join them with a comma and space: "1621 Central Avenue, Cheyenne, WY 82001". The verifier normalises whitespace so multi-line evidence will match.
 CRITICAL EXCLUSION: ONLY these specific Wyoming Secretary of State addresses are government addresses — never THIS company's: "Herschler Building East, Suite 101, 122 W 25th Street, Cheyenne, WY 82002-0020", "122 W 25th Street, Cheyenne", and "2020 Carey Avenue, Cheyenne". Any OTHER Cheyenne address (e.g., "1621 Central Avenue, Cheyenne, WY 82001") is NOT a government address. Also exclude retailer/stockist addresses in "where to buy" lists and event-venue addresses.
 </field_specs>
 
