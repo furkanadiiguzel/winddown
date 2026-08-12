@@ -49,7 +49,10 @@ export class PlaywrightScraper implements ScraperTier {
         // Not available (local dev) — let playwright-core find its own binary
       }
 
-      const { chromium: pw } = await import("playwright-core");
+      // Use indirect path so TypeScript doesn't resolve devDependency types at build time
+      const pwPath = "playwright-core";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { chromium: pw } = await import(pwPath) as any;
       return pw.launch({
         executablePath,
         args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
