@@ -20,6 +20,31 @@ export interface PageBlock {
 export function prunePage(url: string, html: string): PageBlock {
   const $ = cheerio.load(html);
 
+  // Extract JSON-LD structured data BEFORE removing scripts
+  // Business sites embed phone/address/email in schema.org markup
+  const jsonLdText: string[] = [];
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const raw = $(el).text();
+      const data = JSON.parse(raw) as Record<string, unknown>;
+      const items = Array.isArray(data) ? data : [data];
+      for (const item of items) {
+        const d = item as Record<string, unknown>;
+        const phone = (d.telephone ?? d.phone ?? "") as string;
+        const email = (d.email ?? "") as string;
+        const nameVal = (d.name ?? "") as string;
+        let addr = "";
+        if (d.address && typeof d.address === "object") {
+          const a = d.address as Record<string, string>;
+          addr = [a.streetAddress, a.addressLocality, a.addressRegion, a.postalCode]
+            .filter(Boolean).join(", ");
+        }
+        const parts = [nameVal, phone, email, addr].filter((s) => s.length > 0);
+        if (parts.length > 0) jsonLdText.push(parts.join("\n"));
+      }
+    } catch { /* skip malformed JSON-LD */ }
+  });
+
   // Remove non-content elements
   $(
     "script, style, noscript, iframe, svg, " +
@@ -83,12 +108,18 @@ export function prunePage(url: string, html: string): PageBlock {
 
   // 3. Fallback: if we got very little, use full body text
   const joined = parts.join("\n");
+
+  // Prepend JSON-LD contact info so AI always sees it first
+  const jsonLdBlock = jsonLdText.length > 0
+    ? `[STRUCTURED CONTACT DATA]\n${jsonLdText.join("\n")}\n[END STRUCTURED DATA]\n\n`
+    : "";
+
   if (joined.length < 200) {
     const bodyText = $("body").text().replace(/\s+/g, " ").trim();
-    return { url, title, text: bodyText.slice(0, TOTAL_CHAR_CAP) };
+    return { url, title, text: (jsonLdBlock + bodyText).slice(0, TOTAL_CHAR_CAP) };
   }
 
-  return { url, title, text: joined };
+  return { url, title, text: (jsonLdBlock + joined).slice(0, TOTAL_CHAR_CAP) };
 }
 
 export function prunePages(pages: Array<{ url: string; html: string }>): PageBlock[] {
